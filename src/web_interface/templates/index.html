@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="jumbotron bg-primary text-white rounded p-5 mb-4">
+            <h1 class="display-4">
+                <i class="fas fa-user-check me-3"></i>Face ID System
+            </h1>
+            <p class="lead">Advanced face recognition system with continuous learning capabilities</p>
+            <hr class="my-4">
+            <p>Register faces, recognize people in real-time, and let the system learn automatically from new encounters.</p>
+            <div class="d-flex gap-3">
+                <a class="btn btn-light btn-lg" href="{{ url_for('register_page') }}" role="button">
+                    <i class="fas fa-user-plus me-2"></i>Register Person
+                </a>
+                <a class="btn btn-outline-light btn-lg" href="{{ url_for('recognize_page') }}" role="button">
+                    <i class="fas fa-search me-2"></i>Recognize Face
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-user-plus fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Face Registration</h5>
+                <p class="card-text">Upload images of people to register them in the system. Multiple angles and lighting conditions improve recognition accuracy.</p>
+                <a href="{{ url_for('register_page') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Register Now
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-search fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Face Recognition</h5>
+                <p class="card-text">Upload an image or use the camera to identify faces. The system will match against registered persons or mark as unknown.</p>
+                <a href="{{ url_for('recognize_page') }}" class="btn btn-success">
+                    <i class="fas fa-search me-1"></i>Recognize Now
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-bar fa-3x text-info mb-3"></i>
+                <h5 class="card-title">Analytics Dashboard</h5>
+                <p class="card-text">View system statistics, recognition history, and continuous learning progress. Monitor system performance and accuracy.</p>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-info">
+                    <i class="fas fa-chart-bar me-1"></i>View Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>System Features
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Multiple Detection Models</h6>
+                        <p class="text-muted small">Supports MTCNN, RetinaFace, OpenCV, and Dlib face detectors</p>
+                        
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Advanced Recognition</h6>
+                        <p class="text-muted small">Uses ArcFace, FaceNet, and VGG-Face models for high accuracy</p>
+                        
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Real-time Processing</h6>
+                        <p class="text-muted small">Live camera feed with instant face recognition</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Continuous Learning</h6>
+                        <p class="text-muted small">Automatically improves recognition with new encounters</p>
+                        
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Database Management</h6>
+                        <p class="text-muted small">SQLite database with comprehensive face data storage</p>
+                        
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Web Interface</h6>
+                        <p class="text-muted small">User-friendly web interface for easy management</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cogs me-2"></i>System Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="system-status">
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                            <h6 class="mb-1">Registered Persons</h6>
+                            <span class="h4 text-primary" id="total-persons">-</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-images fa-2x text-success mb-2"></i>
+                            <h6 class="mb-1">Total Images</h6>
+                            <span class="h4 text-success" id="total-images">-</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-eye fa-2x text-info mb-2"></i>
+                            <h6 class="mb-1">Recognitions</h6>
+                            <span class="h4 text-info" id="total-recognitions">-</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
+                            <h6 class="mb-1">Success Rate</h6>
+                            <span class="h4 text-warning" id="success-rate">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadSystemStatus();
+    
+    // Refresh status every 30 seconds
+    setInterval(loadSystemStatus, 30000);
+});
+
+function loadSystemStatus() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.database_stats) {
+                document.getElementById('total-persons').textContent = data.database_stats.total_persons || 0;
+                document.getElementById('total-images').textContent = data.database_stats.total_images || 0;
+            }
+            
+            if (data.recent_stats) {
+                document.getElementById('total-recognitions').textContent = data.recent_stats.total_recognitions || 0;
+                const successRate = data.recent_stats.success_rate ? (data.recent_stats.success_rate * 100).toFixed(1) : 0;
+                document.getElementById('success-rate').textContent = successRate + '%';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading system status:', error);
+        });
+}
+</script>
+{% endblock %}

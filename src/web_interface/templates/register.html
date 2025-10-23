@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-user-plus me-2"></i>Register New Person
+                </h4>
+            </div>
+            <div class="card-body">
+                <form id="register-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="person_name" class="form-label">Person Name</label>
+                        <input type="text" class="form-control" id="person_name" name="person_name" required>
+                        <div class="form-text">Enter the full name of the person to register</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="image_file" class="form-label">Face Image</label>
+                        <input type="file" class="form-control" id="image_file" name="file" accept="image/*" required>
+                        <div class="form-text">Upload a clear image of the person's face. Supported formats: JPG, PNG, GIF, BMP</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="preview_image" class="form-label">Image Preview</label>
+                                <div id="image_preview" class="border rounded p-3 text-center" style="min-height: 200px;">
+                                    <i class="fas fa-image fa-3x text-muted"></i>
+                                    <p class="text-muted mt-2">No image selected</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Registration Tips</label>
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-lightbulb me-2"></i>For Best Results:</h6>
+                                    <ul class="mb-0 small">
+                                        <li>Use clear, well-lit images</li>
+                                        <li>Face should be clearly visible</li>
+                                        <li>Avoid sunglasses or face coverings</li>
+                                        <li>Front-facing angle works best</li>
+                                        <li>High resolution images preferred</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary btn-lg" onclick="registerPerson()">
+                            <i class="fas fa-user-plus me-2"></i>Register Person
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="testForm()">
+                            <i class="fas fa-bug me-2"></i>Debug Form
+                        </button>
+                        <button type="button" class="btn btn-info btn-sm" onclick="showDebugInfo()">
+                            <i class="fas fa-info-circle me-2"></i>Show Debug Info
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="registration-result" class="mt-4" style="display: none;">
+                    <!-- Results will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Registered Persons
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="persons-list">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading registered persons...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadRegisteredPersons();
+    
+    // Image preview functionality
+    document.getElementById('image_file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('image_preview');
+                preview.innerHTML = `
+                    <img src="${e.target.result}" class="img-fluid rounded" style="max-height: 200px;" alt="Preview">
+                    <p class="mt-2 text-muted small">${file.name}</p>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // No form submission listener needed - using button onclick instead
+});
+
+function loadRegisteredPersons() {
+    fetch('/api/persons')
+        .then(response => response.json())
+        .then(data => {
+            const personsList = document.getElementById('persons-list');
+            
+            if (data.persons && data.persons.length > 0) {
+                personsList.innerHTML = data.persons.map(person => `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="card-title mb-1">${person.name}</h6>
+                                    <p class="card-text text-muted small mb-0">
+                                        <i class="fas fa-images me-1"></i>${person.total_images} images
+                                        <span class="ms-3">
+                                            <i class="fas fa-calendar me-1"></i>Registered: ${new Date(person.created_at).toLocaleDateString()}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deletePerson(${person.id}, '${person.name}')">
+                                        <i class="fas fa-trash me-1"></i>Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                personsList.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-users fa-3x mb-3"></i>
+                        <p>No persons registered yet. Register your first person above!</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading persons:', error);
+            document.getElementById('persons-list').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error loading registered persons
+                </div>
+            `;
+        });
+}
+
+function deletePerson(personId, personName) {
+    if (confirm(`Are you sure you want to delete ${personName}? This action cannot be undone.`)) {
+        fetch(`/api/delete_person/${personId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+                loadRegisteredPersons(); // Refresh the list
+            } else {
+                showAlert(data.error || 'Failed to delete person', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('An error occurred while deleting', 'danger');
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const resultDiv = document.getElementById('registration-result');
+    resultDiv.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'times-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 5000);
+}
+
+function testForm() {
+    console.log('=== FORM DEBUG TEST ===');
+    const personName = document.getElementById('person_name').value;
+    const imageFile = document.getElementById('image_file').files[0];
+    
+    console.log('Person name field:', personName);
+    console.log('Image file field:', imageFile);
+    console.log('Form element:', document.getElementById('register-form'));
+    console.log('Submit button:', document.querySelector('button[type="submit"]'));
+    
+    if (!personName) {
+        showAlert('Please enter a person name first', 'warning');
+        return;
+    }
+    
+    if (!imageFile) {
+        showAlert('Please select an image file first', 'warning');
+        return;
+    }
+    
+    showAlert('Form validation passed! Try clicking Register Person button.', 'info');
+}
+
+function showDebugInfo() {
+    console.log('=== COMPREHENSIVE DEBUG INFO ===');
+    
+    // Check server connection
+    fetch('/api/persons')
+        .then(response => {
+            console.log('Server connection test:', response.ok ? 'SUCCESS' : 'FAILED');
+            console.log('Server response status:', response.status);
+        })
+        .catch(error => {
+            console.log('Server connection test: FAILED');
+            console.log('Server error:', error);
+        });
+    
+    // Check form elements
+    const form = document.getElementById('register-form');
+    const personNameField = document.getElementById('person_name');
+    const imageFileField = document.getElementById('image_file');
+    const submitButton = document.querySelector('button[type="submit"]');
+    
+    console.log('Form element found:', !!form);
+    console.log('Person name field found:', !!personNameField);
+    console.log('Image file field found:', !!imageFileField);
+    console.log('Submit button found:', !!submitButton);
+    
+    // Check form values
+    console.log('Person name value:', personNameField ? personNameField.value : 'N/A');
+    console.log('Image file selected:', imageFileField ? imageFileField.files.length : 'N/A');
+    
+    // Check event listeners
+    console.log('Form has submit event listener:', form ? 'YES' : 'NO');
+    
+    // Test API endpoint
+    fetch('/api/register', {
+        method: 'POST',
+        body: new FormData()
+    })
+    .then(response => {
+        console.log('API endpoint test status:', response.status);
+        return response.text();
+    })
+    .then(data => {
+        console.log('API endpoint test response:', data);
+    })
+    .catch(error => {
+        console.log('API endpoint test error:', error);
+    });
+    
+    showAlert('Debug information logged to console. Press F12 to view.', 'info');
+}
+
+function registerPerson() {
+    console.log('=== REGISTERING PERSON ===');
+    
+    const personName = document.getElementById('person_name').value;
+    const imageFile = document.getElementById('image_file').files[0];
+    
+    if (!personName) {
+        showAlert('Please enter a person name first', 'warning');
+        return;
+    }
+    
+    if (!imageFile) {
+        showAlert('Please select an image file first', 'warning');
+        return;
+    }
+    
+    console.log('Registering person with:', personName, imageFile);
+    
+    const formData = new FormData();
+    formData.append('person_name', personName);
+    formData.append('file', imageFile);
+    
+    console.log('Sending registration request...');
+    
+    // Show loading state
+    const registerBtn = document.querySelector('button[onclick="registerPerson()"]');
+    const originalText = registerBtn.innerHTML;
+    registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Registering...';
+    registerBtn.disabled = true;
+    
+    fetch('/api/register', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Registration response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Registration response data:', data);
+        if (data.success) {
+            showAlert('🎉 SUCCESS: ' + data.message + ' - Page will refresh in 3 seconds...', 'success');
+            
+            // Reset form
+            document.getElementById('register-form').reset();
+            document.getElementById('image_preview').innerHTML = `
+                <i class="fas fa-image fa-3x text-muted"></i>
+                <p class="text-muted mt-2">No image selected</p>
+            `;
+            
+            // Auto-refresh page after 3 seconds
+            setTimeout(() => {
+                console.log('Auto-refreshing page...');
+                window.location.reload();
+            }, 3000);
+            
+        } else {
+            showAlert('❌ REGISTRATION FAILED: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Registration error:', error);
+        showAlert('❌ REGISTRATION ERROR: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        registerBtn.innerHTML = originalText;
+        registerBtn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

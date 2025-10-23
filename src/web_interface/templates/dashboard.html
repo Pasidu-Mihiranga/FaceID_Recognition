@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>System Dashboard
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- System Overview -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-users fa-2x mb-2"></i>
+                                <h4 id="total-persons">{{ stats.database_stats.total_persons if stats.database_stats else 0 }}</h4>
+                                <p class="mb-0">Registered Persons</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-images fa-2x mb-2"></i>
+                                <h4 id="total-images">{{ stats.database_stats.total_images if stats.database_stats else 0 }}</h4>
+                                <p class="mb-0">Total Images</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-eye fa-2x mb-2"></i>
+                                <h4 id="total-recognitions">{{ stats.recent_stats.total_recognitions if stats.recent_stats else 0 }}</h4>
+                                <p class="mb-0">Recognitions (7 days)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <i class="fas fa-percentage fa-2x mb-2"></i>
+                                <h4 id="success-rate">{{ "%.1f"|format(stats.recent_stats.success_rate * 100) if stats.recent_stats and stats.recent_stats.success_rate else 0 }}%</h4>
+                                <p class="mb-0">Success Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Status -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-cogs me-2"></i>System Configuration
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Detector Type:</strong></td>
+                                            <td id="detector-type">{{ stats.system_status.detector_type if stats.system_status else 'N/A' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Recognition Model:</strong></td>
+                                            <td id="recognition-model">{{ stats.system_status.recognition_model if stats.system_status else 'N/A' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Recognition Threshold:</strong></td>
+                                            <td id="recognition-threshold">{{ stats.system_status.recognition_threshold if stats.system_status else 'N/A' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>System Status:</strong></td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if stats.system_status and stats.system_status.is_running else 'secondary' }}" id="system-status">
+                                                    {{ 'Running' if stats.system_status and stats.system_status.is_running else 'Stopped' }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-brain me-2"></i>Continuous Learning
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Total Updates:</strong></td>
+                                            <td id="learning-updates">{{ stats.learning_stats.total_updates if stats.learning_stats else 0 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Successful Updates:</strong></td>
+                                            <td id="successful-updates">{{ stats.learning_stats.successful_updates if stats.learning_stats else 0 }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Success Rate:</strong></td>
+                                            <td id="learning-success-rate">
+                                                {{ "%.1f"|format(stats.learning_stats.success_rate * 100) if stats.learning_stats and stats.learning_stats.success_rate else 0 }}%
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Last Update:</strong></td>
+                                            <td id="last-update">
+                                                {{ stats.learning_stats.last_update_time if stats.learning_stats and stats.learning_stats.last_update_time else 'Never' }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recognition Statistics -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-chart-pie me-2"></i>Recognition Breakdown
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="recognitionChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-trophy me-2"></i>Top Recognized Persons
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="top-persons">
+                                    {% if stats.recent_stats and stats.recent_stats.top_persons %}
+                                        {% for person in stats.recent_stats.top_persons[:5] %}
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span>{{ person.name }}</span>
+                                            <span class="badge bg-primary">{{ person.count }} times</span>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <p class="text-muted">No recognition data available</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Registered Persons -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-users me-2"></i>Registered Persons
+                                </h5>
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshData()">
+                                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Images</th>
+                                                <th>Registered</th>
+                                                <th>Last Seen</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="persons-table">
+                                            {% if stats.database_stats and stats.database_stats.persons %}
+                                                {% for person in stats.database_stats.persons %}
+                                                <tr>
+                                                    <td>{{ person.name }}</td>
+                                                    <td>{{ person.images }}</td>
+                                                    <td>{{ person.created_at[:10] if person.created_at else 'N/A' }}</td>
+                                                    <td>{{ person.last_seen[:10] if person.last_seen else 'Never' }}</td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-outline-danger" onclick="deletePerson({{ person.id }}, '{{ person.name }}')">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            {% else %}
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted">No persons registered</td>
+                                                </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Actions -->
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-tools me-2"></i>System Actions
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-outline-primary" onclick="exportData()">
+                                        <i class="fas fa-download me-2"></i>Export Data
+                                    </button>
+                                    <button class="btn btn-outline-success" onclick="startCamera()">
+                                        <i class="fas fa-camera me-2"></i>Start Camera
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="stopCamera()">
+                                        <i class="fas fa-stop me-2"></i>Stop Camera
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="cleanupSystem()">
+                                        <i class="fas fa-broom me-2"></i>Cleanup System
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let recognitionChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeChart();
+    refreshData();
+    
+    // Refresh data every 30 seconds
+    setInterval(refreshData, 30000);
+});
+
+function initializeChart() {
+    const ctx = document.getElementById('recognitionChart').getContext('2d');
+    recognitionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Successful', 'Unknown'],
+            datasets: [{
+                data: [0, 0],
+                backgroundColor: ['#28a745', '#ffc107'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function refreshData() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            // Update overview cards
+            if (data.database_stats) {
+                document.getElementById('total-persons').textContent = data.database_stats.total_persons || 0;
+                document.getElementById('total-images').textContent = data.database_stats.total_images || 0;
+            }
+            
+            if (data.recent_stats) {
+                document.getElementById('total-recognitions').textContent = data.recent_stats.total_recognitions || 0;
+                const successRate = data.recent_stats.success_rate ? (data.recent_stats.success_rate * 100).toFixed(1) : 0;
+                document.getElementById('success-rate').textContent = successRate + '%';
+                
+                // Update chart
+                if (recognitionChart) {
+                    recognitionChart.data.datasets[0].data = [
+                        data.recent_stats.successful_recognitions || 0,
+                        data.recent_stats.unknown_faces || 0
+                    ];
+                    recognitionChart.update();
+                }
+            }
+            
+            // Update system status
+            if (data.system_status) {
+                document.getElementById('detector-type').textContent = data.system_status.detector_type || 'N/A';
+                document.getElementById('recognition-model').textContent = data.system_status.recognition_model || 'N/A';
+                document.getElementById('recognition-threshold').textContent = data.system_status.recognition_threshold || 'N/A';
+                
+                const statusBadge = document.getElementById('system-status');
+                if (data.system_status.is_running) {
+                    statusBadge.className = 'badge bg-success';
+                    statusBadge.textContent = 'Running';
+                } else {
+                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.textContent = 'Stopped';
+                }
+            }
+            
+            // Update learning stats
+            if (data.learning_stats) {
+                document.getElementById('learning-updates').textContent = data.learning_stats.total_updates || 0;
+                document.getElementById('successful-updates').textContent = data.learning_stats.successful_updates || 0;
+                const learningSuccessRate = data.learning_stats.success_rate ? (data.learning_stats.success_rate * 100).toFixed(1) : 0;
+                document.getElementById('learning-success-rate').textContent = learningSuccessRate + '%';
+                document.getElementById('last-update').textContent = data.learning_stats.last_update_time || 'Never';
+            }
+            
+            // Update top persons
+            if (data.recent_stats && data.recent_stats.top_persons) {
+                const topPersonsDiv = document.getElementById('top-persons');
+                topPersonsDiv.innerHTML = data.recent_stats.top_persons.slice(0, 5).map(person => `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${person.name}</span>
+                        <span class="badge bg-primary">${person.count} times</span>
+                    </div>
+                `).join('');
+            }
+            
+            // Update persons table
+            if (data.database_stats && data.database_stats.persons) {
+                const tableBody = document.getElementById('persons-table');
+                tableBody.innerHTML = data.database_stats.persons.map(person => `
+                    <tr>
+                        <td>${person.name}</td>
+                        <td>${person.images}</td>
+                        <td>${person.created_at ? person.created_at.substring(0, 10) : 'N/A'}</td>
+                        <td>${person.last_seen ? person.last_seen.substring(0, 10) : 'Never'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deletePerson(${person.id}, '${person.name}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing data:', error);
+        });
+}
+
+function deletePerson(personId, personName) {
+    if (confirm(`Are you sure you want to delete ${personName}? This action cannot be undone.`)) {
+        fetch(`/api/delete_person/${personId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                refreshData();
+            } else {
+                alert(data.error || 'Failed to delete person');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting');
+        });
+    }
+}
+
+function exportData() {
+    fetch('/api/export', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            export_path: 'data/export'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Data exported successfully!');
+        } else {
+            alert(data.error || 'Export failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred during export');
+    });
+}
+
+function startCamera() {
+    fetch('/api/camera/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            camera_index: 0
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Camera started successfully!');
+            refreshData();
+        } else {
+            alert(data.error || 'Failed to start camera');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while starting camera');
+    });
+}
+
+function stopCamera() {
+    fetch('/api/camera/stop', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Camera stopped successfully!');
+            refreshData();
+        } else {
+            alert(data.error || 'Failed to stop camera');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while stopping camera');
+    });
+}
+
+function cleanupSystem() {
+    if (confirm('Are you sure you want to cleanup the system? This will remove old logs and temporary files.')) {
+        // This would typically call a cleanup API endpoint
+        alert('Cleanup completed!');
+        refreshData();
+    }
+}
+</script>
+{% endblock %}

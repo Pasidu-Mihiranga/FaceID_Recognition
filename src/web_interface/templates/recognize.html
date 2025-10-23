@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-search me-2"></i>Face Recognition
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-upload me-2"></i>Upload Image</h5>
+                        <form id="recognize-form" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="image_file" class="form-label">Select Image</label>
+                                <input type="file" class="form-control" id="image_file" name="file" accept="image/*" required>
+                                <div class="form-text">Upload an image containing a face to recognize</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div id="image_preview" class="border rounded p-3 text-center" style="min-height: 200px;">
+                                    <i class="fas fa-image fa-3x text-muted"></i>
+                                    <p class="text-muted mt-2">No image selected</p>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="button" class="btn btn-primary btn-lg" onclick="recognizeFace()">
+                                    <i class="fas fa-search me-2"></i>Recognize Face
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-camera me-2"></i>Live Camera</h5>
+                        <div class="text-center">
+                            <div id="camera-container" class="border rounded p-3 mb-3" style="min-height: 200px;">
+                                <i class="fas fa-camera fa-3x text-muted"></i>
+                                <p class="text-muted mt-2">Camera not started</p>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button id="start-camera-btn" class="btn btn-success">
+                                    <i class="fas fa-play me-2"></i>Start Camera
+                                </button>
+                                <button id="stop-camera-btn" class="btn btn-danger" style="display: none;">
+                                    <i class="fas fa-stop me-2"></i>Stop Camera
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="recognition-result" class="mt-4" style="display: none;">
+                    <!-- Results will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Recognitions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="recognition-history">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-clock fa-3x mb-3"></i>
+                        <p>No recent recognitions to display</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cameraStream = null;
+let isCameraRunning = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Image preview functionality
+    document.getElementById('image_file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('image_preview');
+                preview.innerHTML = `
+                    <img src="${e.target.result}" class="img-fluid rounded" style="max-height: 200px;" alt="Preview">
+                    <p class="mt-2 text-muted small">${file.name}</p>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // No form submission needed - using button onclick instead
+    
+    // Camera controls
+    document.getElementById('start-camera-btn').addEventListener('click', startCamera);
+    document.getElementById('stop-camera-btn').addEventListener('click', stopCamera);
+});
+
+function startCamera() {
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(function(stream) {
+            cameraStream = stream;
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.style.width = '100%';
+            video.style.height = '200px';
+            video.style.objectFit = 'cover';
+            
+            const container = document.getElementById('camera-container');
+            container.innerHTML = '';
+            container.appendChild(video);
+            
+            document.getElementById('start-camera-btn').style.display = 'none';
+            document.getElementById('stop-camera-btn').style.display = 'block';
+            
+            isCameraRunning = true;
+            
+            // Start periodic recognition
+            startPeriodicRecognition(video);
+        })
+        .catch(function(error) {
+            console.error('Error accessing camera:', error);
+            showAlert('Could not access camera. Please check permissions.', 'danger');
+        });
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    const container = document.getElementById('camera-container');
+    container.innerHTML = `
+        <i class="fas fa-camera fa-3x text-muted"></i>
+        <p class="text-muted mt-2">Camera not started</p>
+    `;
+    
+    document.getElementById('start-camera-btn').style.display = 'block';
+    document.getElementById('stop-camera-btn').style.display = 'none';
+    
+    isCameraRunning = false;
+}
+
+function startPeriodicRecognition(video) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    setInterval(() => {
+        if (isCameraRunning && video.videoWidth > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            
+            canvas.toBlob(function(blob) {
+                const formData = new FormData();
+                formData.append('file', blob, 'camera_capture.jpg');
+                
+                fetch('/api/recognize', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.person_name) {
+                        displayRecognitionResult(data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Recognition error:', error);
+                });
+            }, 'image/jpeg', 0.8);
+        }
+    }, 3000); // Recognize every 3 seconds
+}
+
+function displayRecognitionResult(data) {
+    const resultDiv = document.getElementById('recognition-result');
+    
+    let resultHtml = '';
+    let alertType = 'info';
+    
+    if (data.person_name) {
+        resultHtml = `
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle me-2"></i>Face Recognized!</h5>
+                <p class="mb-1"><strong>Person:</strong> ${data.person_name}</p>
+                <p class="mb-0"><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</p>
+            </div>
+        `;
+        alertType = 'success';
+    } else {
+        resultHtml = `
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-question-circle me-2"></i>Unknown Face</h5>
+                <p class="mb-1">The face was not recognized</p>
+                <p class="mb-0"><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</p>
+            </div>
+        `;
+        alertType = 'warning';
+    }
+    
+    resultDiv.innerHTML = resultHtml;
+    resultDiv.style.display = 'block';
+    
+    // Add to recognition history
+    addToRecognitionHistory(data);
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 5000);
+}
+
+function addToRecognitionHistory(data) {
+    const historyDiv = document.getElementById('recognition-history');
+    const timestamp = new Date().toLocaleString();
+    
+    const historyItem = document.createElement('div');
+    historyItem.className = 'card mb-2';
+    historyItem.innerHTML = `
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h6 class="mb-1">${data.person_name || 'Unknown'}</h6>
+                    <small class="text-muted">${timestamp}</small>
+                </div>
+                <div class="col-md-3">
+                    <span class="badge bg-${data.person_name ? 'success' : 'warning'}">
+                        ${(data.confidence * 100).toFixed(1)}%
+                    </span>
+                </div>
+                <div class="col-md-3 text-end">
+                    <small class="text-muted">
+                        <i class="fas fa-${data.person_name ? 'check' : 'question'} me-1"></i>
+                        ${data.person_name ? 'Recognized' : 'Unknown'}
+                    </small>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Insert at the beginning
+    historyDiv.insertBefore(historyItem, historyDiv.firstChild);
+    
+    // Keep only last 10 items
+    while (historyDiv.children.length > 10) {
+        historyDiv.removeChild(historyDiv.lastChild);
+    }
+}
+
+function recognizeFace() {
+    console.log('=== RECOGNIZING FACE ===');
+    
+    const imageFile = document.getElementById('image_file').files[0];
+    const recognizeBtn = document.querySelector('button[onclick="recognizeFace()"]');
+    
+    console.log('Image file selected:', !!imageFile);
+    
+    if (!imageFile) {
+        showAlert('Please select an image file first', 'warning');
+        return;
+    }
+    
+    console.log('Recognizing face in:', imageFile.name);
+    
+    // Show loading state
+    const originalText = recognizeBtn.innerHTML;
+    recognizeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Recognizing...';
+    recognizeBtn.disabled = true;
+    
+    const formData = new FormData();
+    formData.append('file', imageFile);
+    
+    console.log('Sending recognition request...');
+    
+    fetch('/api/recognize', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Recognition response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Recognition response data:', data);
+        
+        // Display result with enhanced notification
+        displayRecognitionResult(data);
+        
+        // Show success notification
+        if (data.person_name) {
+            showAlert('🎉 SUCCESS: Recognized as ' + data.person_name + ' (Confidence: ' + (data.confidence * 100).toFixed(1) + '%)', 'success');
+        } else {
+            showAlert('ℹ️ INFO: Unknown face detected (Confidence: ' + (data.confidence * 100).toFixed(1) + '%)', 'info');
+        }
+    })
+    .catch(error => {
+        console.error('Recognition error:', error);
+        showAlert('❌ ERROR: Recognition failed - ' + error.message, 'danger');
+    })
+    .finally(() => {
+        recognizeBtn.innerHTML = originalText;
+        recognizeBtn.disabled = false;
+    });
+}
+
+function showAlert(message, type) {
+    const resultDiv = document.getElementById('recognition-result');
+    resultDiv.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'times-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 5000);
+}
+</script>
+{% endblock %}
