@@ -1,7 +1,0 @@
-Defaulting to user installation because normal site-packages is not writeable
-Requirement already satisfied: pandas in c:\users\pmihir\appdata\roaming\python\python314\site-packages (2.3.3)
-Requirement already satisfied: numpy>=1.26.0 in c:\users\pmihir\appdata\roaming\python\python314\site-packages (from pandas) (2.3.4)
-Requirement already satisfied: python-dateutil>=2.8.2 in c:\users\pmihir\appdata\roaming\python\python314\site-packages (from pandas) (2.9.0.post0)
-Requirement already satisfied: pytz>=2020.1 in c:\users\pmihir\appdata\roaming\python\python314\site-packages (from pandas) (2025.2)
-Requirement already satisfied: tzdata>=2022.7 in c:\users\pmihir\appdata\roaming\python\python314\site-packages (from pandas) (2025.2)
-Requirement already satisfied: six>=1.5 in c:\users\pmihir\appdata\roaming\python\python314\site-packages (from python-dateutil>=2.8.2->pandas) (1.17.0)
