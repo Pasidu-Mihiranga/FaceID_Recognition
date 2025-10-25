@@ -337,15 +337,15 @@ class FaceIDWebInterface:
                 if not person:
                     return jsonify({'error': 'Person not found'}), 404
                 
-                success = self.face_id_system.database.delete_person(person_id)
+                person_name = person['name']
+                
+                # Use comprehensive deletion method
+                success = self.face_id_system.delete_person_comprehensive(person_id)
                 
                 if success:
-                    # Also remove from recognition manager
-                    self.face_id_system.face_recognizer.remove_person(person['name'])
-                    
                     return jsonify({
                         'success': True,
-                        'message': f'Successfully deleted {person["name"]}'
+                        'message': f'Successfully deleted {person_name} and all associated data'
                     })
                 else:
                     return jsonify({'error': 'Failed to delete person'}), 500

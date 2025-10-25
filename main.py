@@ -684,6 +684,90 @@ class FaceIDSystem:
         except Exception as e:
             logger.error(f"Failed to export system data: {e}")
     
+    def delete_person_comprehensive(self, person_id: int) -> bool:
+        """
+        Comprehensive person deletion that removes all data from all systems
+        
+        Args:
+            person_id: ID of the person to delete
+            
+        Returns:
+            True if deletion successful, False otherwise
+        """
+        try:
+            # Get person info
+            person = self.database.get_person_by_id(person_id)
+            if not person:
+                logger.error(f"Person with ID {person_id} not found")
+                return False
+            
+            person_name = person['name']
+            logger.info(f"Starting comprehensive deletion for: {person_name} (ID: {person_id})")
+            
+            # Step 1: Delete from face identity manager
+            try:
+                identity_deleted = self.identity_manager.delete_identity(person_name)
+                logger.info(f"Face identity deletion: {'Success' if identity_deleted else 'Not found'}")
+            except Exception as e:
+                logger.warning(f"Face identity deletion failed: {e}")
+            
+            # Step 2: Remove from recognition manager
+            try:
+                recognition_removed = self.face_recognizer.remove_person(person_name)
+                logger.info(f"Recognition manager removal: {'Success' if recognition_removed else 'Not found'}")
+            except Exception as e:
+                logger.warning(f"Recognition manager removal failed: {e}")
+            
+            # Step 3: Delete from database (handles files and database records)
+            try:
+                db_deleted = self.database.delete_person(person_id)
+                if not db_deleted:
+                    logger.error("Database deletion failed")
+                    return False
+                logger.info("Database deletion: Success")
+            except Exception as e:
+                logger.error(f"Database deletion failed: {e}")
+                return False
+            
+            # Step 4: Clean up video frames directory
+            try:
+                import glob
+                import shutil
+                video_frames_pattern = f"data/video_frames/{person_name.replace(' ', '_')}_*"
+                matching_dirs = glob.glob(video_frames_pattern)
+                for dir_path in matching_dirs:
+                    if os.path.exists(dir_path):
+                        shutil.rmtree(dir_path)
+                        logger.info(f"Deleted video frames directory: {dir_path}")
+            except Exception as e:
+                logger.warning(f"Video frames cleanup failed: {e}")
+            
+            # Step 5: Clean up uploads directory
+            try:
+                import glob
+                upload_pattern = f"data/uploads/*{person_name.replace(' ', '_')}*"
+                matching_files = glob.glob(upload_pattern)
+                for file_path in matching_files:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        logger.info(f"Deleted upload file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Upload files cleanup failed: {e}")
+            
+            # Step 6: Save updated embeddings database
+            try:
+                self.face_recognizer.save_database()
+                logger.info("Updated embeddings database saved")
+            except Exception as e:
+                logger.warning(f"Embeddings database save failed: {e}")
+            
+            logger.info(f"Comprehensive deletion completed for {person_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Comprehensive deletion failed: {e}")
+            return False
+    
     def cleanup_system(self):
         """Clean up system resources"""
         try:
