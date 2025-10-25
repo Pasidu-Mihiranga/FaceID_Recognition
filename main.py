@@ -454,9 +454,9 @@ class FaceIDSystem:
             except Exception as e:
                 logger.warning(f"Failed to log recognition: {e}")
             
-            # Continuous learning disabled - no auto training during recognition
-            # if person_name and confidence > self.learning_manager.learning_threshold:
-            #     self.learning_manager.process_recognition_result(face_image, person_name, confidence)
+            # Continuous learning enabled - auto training during recognition
+            if person_name and confidence > self.learning_manager.learning_threshold:
+                self.learning_manager.process_recognition_result(processed_face, person_name, confidence)
             
             # Convert numpy int32 to Python int for JSON serialization
             if face_info and 'bbox' in face_info:
