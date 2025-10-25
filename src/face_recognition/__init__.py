@@ -376,7 +376,7 @@ class DeepFaceRecognizer(FaceRecognizer):
 
 
 class FaceRecognitionManager:
-    """Manager class for face recognition with multiple models"""
+    """Optimized manager class for face recognition with caching and multiple models"""
     
     def __init__(self, model_type: str = 'arcface', threshold: float = 0.5):
         """
@@ -390,6 +390,8 @@ class FaceRecognitionManager:
         self.threshold = threshold
         self.recognizer = self._initialize_recognizer(model_type)
         self.face_database = {}  # Dictionary to store face embeddings
+        self.embedding_cache = {}  # Cache for computed embeddings
+        self.cache_max_size = 1000  # Maximum cache size
         self.load_database()
     
     def _initialize_recognizer(self, model_type: str) -> FaceRecognizer:
@@ -448,38 +450,98 @@ class FaceRecognitionManager:
     
     def recognize_face(self, face_image: np.ndarray) -> Tuple[Optional[str], float]:
         """
-        Recognize a face from the database
+        Optimized face recognition with caching and fast matching
         
         Args:
-            face_image: Face image to recognize
+            face_image: Preprocessed face image
             
         Returns:
-            Tuple of (person_name, confidence_score)
+            Tuple of (person_name, confidence)
         """
         try:
-            # Extract embedding
-            embedding = self.recognizer.extract_embedding(face_image)
+            # Create cache key from image hash
+            image_hash = hash(face_image.tobytes())
             
+            # Check cache first
+            if image_hash in self.embedding_cache:
+                embedding = self.embedding_cache[image_hash]
+            else:
+                # Extract embedding
+                embedding = self.recognizer.extract_embedding(face_image)
+                
+                # Cache the embedding
+                if len(self.embedding_cache) < self.cache_max_size:
+                    self.embedding_cache[image_hash] = embedding
+                else:
+                    # Remove oldest cache entries
+                    oldest_key = next(iter(self.embedding_cache))
+                    del self.embedding_cache[oldest_key]
+                    self.embedding_cache[image_hash] = embedding
+            
+            # Fast matching using precomputed similarities
             best_match = None
-            best_score = 0.0
+            best_similarity = 0.0
             
-            # Compare with all registered faces
-            for person_name, embeddings in self.face_database.items():
-                for stored_embedding in embeddings:
-                    similarity = self.recognizer.compare_faces(embedding, stored_embedding)
-                    
-                    if similarity > best_score:
-                        best_score = similarity
-                        best_match = person_name
+            # Use optimized comparison for large databases
+            if len(self.face_database) > 10:
+                best_match, best_similarity = self._fast_face_matching(embedding)
+            else:
+                # Standard comparison for small databases
+                for person_name, embeddings in self.face_database.items():
+                    for stored_embedding in embeddings:
+                        similarity = self.recognizer.compare_faces(embedding, stored_embedding)
+                        
+                        if similarity > best_similarity:
+                            best_similarity = similarity
+                            best_match = person_name
             
             # Check if similarity exceeds threshold
-            if best_score >= self.threshold:
-                return best_match, best_score
+            if best_similarity >= self.threshold:
+                return best_match, best_similarity
             else:
-                return None, best_score
+                return None, best_similarity
                 
         except Exception as e:
             logger.error(f"Face recognition failed: {e}")
+            return None, 0.0
+    
+    def _fast_face_matching(self, query_embedding: np.ndarray) -> Tuple[Optional[str], float]:
+        """Fast face matching using vectorized operations"""
+        try:
+            if not self.face_database:
+                return None, 0.0
+            
+            best_match = None
+            best_similarity = 0.0
+            
+            # Normalize query embedding once
+            query_embedding = query_embedding / np.linalg.norm(query_embedding)
+            
+            for person_name, embeddings in self.face_database.items():
+                if not embeddings:
+                    continue
+                
+                # Convert embeddings to numpy array for vectorized operations
+                embeddings_array = np.array(embeddings)
+                
+                # Normalize all embeddings at once
+                norms = np.linalg.norm(embeddings_array, axis=1, keepdims=True)
+                normalized_embeddings = embeddings_array / norms
+                
+                # Calculate similarities using dot product
+                similarities = np.dot(normalized_embeddings, query_embedding)
+                
+                # Find maximum similarity for this person
+                max_similarity = np.max(similarities)
+                
+                if max_similarity > best_similarity:
+                    best_similarity = max_similarity
+                    best_match = person_name
+            
+            return best_match, float(best_similarity)
+            
+        except Exception as e:
+            logger.error(f"Fast face matching failed: {e}")
             return None, 0.0
     
     def update_face(self, face_image: np.ndarray, person_name: str) -> bool:

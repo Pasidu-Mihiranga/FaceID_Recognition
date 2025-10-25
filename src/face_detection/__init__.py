@@ -111,48 +111,190 @@ class RetinaFaceDetector(FaceDetector):
             return []
 
 class OpenCVDetector(FaceDetector):
-    """OpenCV Haar Cascade face detector"""
+    """Enhanced OpenCV Haar Cascade face detector with improved accuracy"""
     
     def __init__(self):
         try:
-            # Load Haar cascade classifier
+            # Load multiple Haar cascade classifiers for better accuracy
             cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
             self.face_cascade = cv2.CascadeClassifier(cascade_path)
+            
+            # Load additional cascade for profile faces
+            profile_cascade_path = cv2.data.haarcascades + 'haarcascade_profileface.xml'
+            self.profile_cascade = cv2.CascadeClassifier(profile_cascade_path)
             
             if self.face_cascade.empty():
                 raise ValueError("Failed to load Haar cascade classifier")
             
-            logger.info("OpenCV Haar Cascade detector initialized successfully")
+            logger.info("Enhanced OpenCV Haar Cascade detector initialized successfully")
         except Exception as e:
             logger.error(f"OpenCV detector initialization failed: {e}")
             raise
     
     def detect_faces(self, image: np.ndarray) -> List[Dict[str, Any]]:
-        """Detect faces using OpenCV Haar Cascade"""
+        """Detect faces using enhanced OpenCV Haar Cascade with validation"""
         try:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
             
-            faces = self.face_cascade.detectMultiScale(
+            # Apply histogram equalization for better detection
+            gray = cv2.equalizeHist(gray)
+            
+            # Detect frontal faces with stricter parameters
+            frontal_faces = self.face_cascade.detectMultiScale(
                 gray,
-                scaleFactor=1.01,  # More lenient
-                minNeighbors=1,    # More lenient
-                minSize=(10, 10),  # Smaller minimum size
+                scaleFactor=1.1,      # Stricter scaling
+                minNeighbors=5,       # Require more neighbors for validation
+                minSize=(30, 30),     # Reasonable minimum face size
+                maxSize=(300, 300),   # Maximum face size
                 flags=cv2.CASCADE_SCALE_IMAGE
             )
             
-            detected_faces = []
-            for (x, y, w, h) in faces:
-                detected_faces.append({
-                    'bbox': (x, y, w, h),
-                    'landmarks': None,
-                    'confidence': 1.0  # Haar cascade doesn't provide confidence
-                })
+            # Detect profile faces
+            profile_faces = []
+            if not self.profile_cascade.empty():
+                profile_faces = self.profile_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=1.1,
+                    minNeighbors=5,
+                    minSize=(30, 30),
+                    maxSize=(300, 300),
+                    flags=cv2.CASCADE_SCALE_IMAGE
+                )
             
-            return detected_faces
+            # Combine and validate faces
+            all_faces = []
+            
+            # Process frontal faces
+            for (x, y, w, h) in frontal_faces:
+                if self._validate_face_region(image, x, y, w, h):
+                    all_faces.append({
+                        'bbox': (x, y, w, h),
+                        'landmarks': None,
+                        'confidence': self._calculate_face_confidence(gray, x, y, w, h)
+                    })
+            
+            # Process profile faces
+            for (x, y, w, h) in profile_faces:
+                if self._validate_face_region(image, x, y, w, h):
+                    all_faces.append({
+                        'bbox': (x, y, w, h),
+                        'landmarks': None,
+                        'confidence': self._calculate_face_confidence(gray, x, y, w, h) * 0.8  # Lower confidence for profile
+                    })
+            
+            # Remove overlapping faces (keep the one with higher confidence)
+            all_faces = self._remove_overlapping_faces(all_faces)
+            
+            # Sort by confidence and return top faces
+            all_faces.sort(key=lambda x: x['confidence'], reverse=True)
+            
+            return all_faces[:3]  # Return maximum 3 faces
             
         except Exception as e:
             logger.error(f"OpenCV detection failed: {e}")
             return []
+    
+    def _validate_face_region(self, image: np.ndarray, x: int, y: int, w: int, h: int) -> bool:
+        """Validate if the detected region is likely a human face"""
+        try:
+            # Check aspect ratio (faces are roughly square to slightly rectangular)
+            aspect_ratio = w / h
+            if aspect_ratio < 0.7 or aspect_ratio > 1.4:
+                return False
+            
+            # Check size constraints
+            if w < 20 or h < 20 or w > 400 or h > 400:
+                return False
+            
+            # Extract face region
+            face_region = image[y:y+h, x:x+w]
+            if face_region.size == 0:
+                return False
+            
+            # Check for sufficient contrast (faces should have good contrast)
+            gray_face = cv2.cvtColor(face_region, cv2.COLOR_BGR2GRAY) if len(face_region.shape) == 3 else face_region
+            contrast = np.std(gray_face)
+            if contrast < 20:  # Too low contrast
+                return False
+            
+            # Check for reasonable brightness distribution
+            mean_brightness = np.mean(gray_face)
+            if mean_brightness < 30 or mean_brightness > 200:  # Too dark or too bright
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Face validation failed: {e}")
+            return False
+    
+    def _calculate_face_confidence(self, gray_image: np.ndarray, x: int, y: int, w: int, h: int) -> float:
+        """Calculate confidence score for detected face"""
+        try:
+            face_region = gray_image[y:y+h, x:x+w]
+            
+            # Calculate various confidence factors
+            contrast_score = min(np.std(face_region) / 50.0, 1.0)  # Normalize contrast
+            
+            # Check for symmetry (faces are roughly symmetric)
+            left_half = face_region[:, :w//2]
+            right_half = face_region[:, w//2:]
+            right_half_flipped = cv2.flip(right_half, 1)
+            
+            # Resize to same dimensions for comparison
+            min_width = min(left_half.shape[1], right_half_flipped.shape[1])
+            left_half = left_half[:, :min_width]
+            right_half_flipped = right_half_flipped[:, :min_width]
+            
+            symmetry_score = 1.0 - np.mean(np.abs(left_half.astype(float) - right_half_flipped.astype(float))) / 255.0
+            
+            # Combine scores
+            confidence = (contrast_score * 0.6 + symmetry_score * 0.4)
+            
+            return min(max(confidence, 0.1), 1.0)  # Clamp between 0.1 and 1.0
+            
+        except Exception as e:
+            logger.warning(f"Confidence calculation failed: {e}")
+            return 0.5  # Default confidence
+    
+    def _remove_overlapping_faces(self, faces: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove overlapping face detections, keeping the one with higher confidence"""
+        if len(faces) <= 1:
+            return faces
+        
+        # Sort by confidence (highest first)
+        faces.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        filtered_faces = []
+        for face in faces:
+            x1, y1, w1, h1 = face['bbox']
+            
+            # Check overlap with already selected faces
+            overlaps = False
+            for selected_face in filtered_faces:
+                x2, y2, w2, h2 = selected_face['bbox']
+                
+                # Calculate intersection area
+                x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+                y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+                intersection_area = x_overlap * y_overlap
+                
+                # Calculate union area
+                area1 = w1 * h1
+                area2 = w2 * h2
+                union_area = area1 + area2 - intersection_area
+                
+                # Calculate overlap ratio
+                overlap_ratio = intersection_area / union_area if union_area > 0 else 0
+                
+                if overlap_ratio > 0.3:  # 30% overlap threshold
+                    overlaps = True
+                    break
+            
+            if not overlaps:
+                filtered_faces.append(face)
+        
+        return filtered_faces
 
 class DlibDetector(FaceDetector):
     """Dlib HOG face detector"""

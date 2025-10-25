@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-video me-2"></i>Video Registration - Enhanced Face Recognition
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Registration Mode Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <i class="fas fa-video fa-3x text-primary mb-3"></i>
+                                <h5>Video Registration</h5>
+                                <p class="text-muted">Capture multiple angles for better accuracy</p>
+                                <button class="btn btn-primary" onclick="startVideoRegistration()">
+                                    <i class="fas fa-play me-2"></i>Start Video Registration
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-body text-center">
+                                <i class="fas fa-image fa-3x text-secondary mb-3"></i>
+                                <h5>Photo Registration</h5>
+                                <p class="text-muted">Traditional single photo method</p>
+                                <button class="btn btn-secondary" onclick="showPhotoRegistration()">
+                                    <i class="fas fa-camera me-2"></i>Use Photo Registration
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Registration Form -->
+                <div id="video-registration-form" style="display: none;">
+                    <form id="register-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="person_name" class="form-label">Person Name</label>
+                            <input type="text" class="form-control" id="person_name" name="person_name" required>
+                            <div class="form-text">Enter the full name of the person to register</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle me-2"></i>Video Registration Instructions:</h6>
+                                <ol class="mb-0">
+                                    <li>Click "Start Recording" below</li>
+                                    <li>Follow the on-screen guidance</li>
+                                    <li>Move your head slowly as instructed</li>
+                                    <li>The system will capture multiple angles automatically</li>
+                                    <li>Recording will stop after 15 seconds</li>
+                                </ol>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-success btn-lg" id="start-recording-btn" onclick="startVideoCapture()">
+                                <i class="fas fa-video me-2"></i>Start Recording
+                            </button>
+                            <button type="button" class="btn btn-warning" id="stop-recording-btn" onclick="stopVideoCapture()" style="display: none;">
+                                <i class="fas fa-stop me-2"></i>Stop Recording
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="video-preview" class="mt-4" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Live Video Feed</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <video id="video-stream" width="640" height="480" autoplay muted></video>
+                                <div id="guidance-text" class="mt-3">
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <span id="guidance-message">Preparing video capture...</span>
+                                    </div>
+                                </div>
+                                <div id="progress-bar" class="mt-3" style="display: none;">
+                                    <div class="progress">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                             role="progressbar" style="width: 0%"></div>
+                                    </div>
+                                    <small class="text-muted">Recording progress</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Photo Registration Form (Hidden by default) -->
+                <div id="photo-registration-form" style="display: none;">
+                    <form id="photo-register-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="photo_person_name" class="form-label">Person Name</label>
+                            <input type="text" class="form-control" id="photo_person_name" name="person_name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="image_file" class="form-label">Face Image</label>
+                            <input type="file" class="form-control" id="image_file" name="file" accept="image/*" required>
+                            <div class="form-text">Upload a clear image of the person's face</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div id="image_preview" class="border rounded p-3 text-center" style="min-height: 200px;">
+                                <i class="fas fa-image fa-3x text-muted"></i>
+                                <p class="text-muted mt-2">No image selected</p>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-primary btn-lg" onclick="registerPersonPhoto()">
+                                <i class="fas fa-user-plus me-2"></i>Register Person
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div id="registration-result" class="mt-4" style="display: none;">
+                    <!-- Results will be displayed here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Registered Persons
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="persons-list">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading registered persons...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let videoStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+let recordingStartTime = null;
+let guidanceInterval = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadRegisteredPersons();
+    
+    // Photo registration image preview
+    document.getElementById('image_file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('image_preview');
+                preview.innerHTML = `
+                    <img src="${e.target.result}" class="img-fluid rounded" style="max-height: 200px;" alt="Preview">
+                    <p class="mt-2 text-muted small">${file.name}</p>
+                `;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+});
+
+function startVideoRegistration() {
+    document.getElementById('video-registration-form').style.display = 'block';
+    document.getElementById('photo-registration-form').style.display = 'none';
+}
+
+function showPhotoRegistration() {
+    document.getElementById('photo-registration-form').style.display = 'block';
+    document.getElementById('video-registration-form').style.display = 'none';
+}
+
+async function startVideoCapture() {
+    try {
+        // Get user media
+        videoStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: 640, 
+                height: 480,
+                facingMode: 'user'
+            } 
+        });
+        
+        // Display video stream
+        const videoElement = document.getElementById('video-stream');
+        videoElement.srcObject = videoStream;
+        
+        // Show video preview
+        document.getElementById('video-preview').style.display = 'block';
+        document.getElementById('start-recording-btn').style.display = 'none';
+        document.getElementById('stop-recording-btn').style.display = 'block';
+        
+        // Start recording
+        startRecording();
+        
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        showAlert('Error accessing camera. Please ensure camera permissions are granted.', 'danger');
+    }
+}
+
+function startRecording() {
+    const personName = document.getElementById('person_name').value;
+    if (!personName) {
+        showAlert('Please enter a person name first', 'warning');
+        return;
+    }
+    
+    recordedChunks = [];
+    isRecording = true;
+    recordingStartTime = Date.now();
+    
+    // Start guidance
+    startGuidance();
+    
+    // Start progress bar
+    document.getElementById('progress-bar').style.display = 'block';
+    updateProgressBar();
+    
+    // Start real video recording
+    startRealVideoRecording();
+    
+    showAlert('Recording started! Follow the on-screen instructions.', 'info');
+}
+
+function startGuidance() {
+    const guidancePhases = [
+        { text: "Look straight at the camera", duration: 3000 },
+        { text: "Slowly turn your head to the left", duration: 3000 },
+        { text: "Look straight again", duration: 2000 },
+        { text: "Slowly turn your head to the right", duration: 3000 },
+        { text: "Look straight and smile", duration: 2000 },
+        { text: "Look up slightly", duration: 2000 },
+        { text: "Look down slightly", duration: 2000 }
+    ];
+    
+    let currentPhase = 0;
+    
+    function updateGuidance() {
+        if (currentPhase < guidancePhases.length && isRecording) {
+            const phase = guidancePhases[currentPhase];
+            document.getElementById('guidance-message').textContent = phase.text;
+            
+            setTimeout(() => {
+                currentPhase++;
+                if (isRecording) {
+                    updateGuidance();
+                }
+            }, phase.duration);
+        } else if (isRecording) {
+            document.getElementById('guidance-message').textContent = "Recording complete! Processing...";
+        }
+    }
+    
+    updateGuidance();
+}
+
+function updateProgressBar() {
+    if (!isRecording) return;
+    
+    const elapsed = Date.now() - recordingStartTime;
+    const progress = Math.min((elapsed / 15000) * 100, 100); // 15 seconds total
+    
+    const progressBar = document.querySelector('.progress-bar');
+    progressBar.style.width = progress + '%';
+    
+    if (progress < 100) {
+        setTimeout(updateProgressBar, 100);
+    } else {
+        stopVideoCapture();
+    }
+}
+
+function startRealVideoRecording() {
+    // Start MediaRecorder to capture actual video
+    if (videoStream) {
+        try {
+            console.log('Starting MediaRecorder with video stream');
+            mediaRecorder = new MediaRecorder(videoStream, {
+                mimeType: 'video/webm;codecs=vp9'
+            });
+            
+            mediaRecorder.ondataavailable = function(event) {
+                console.log(`Data available: ${event.data.size} bytes`);
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+            
+            mediaRecorder.onstop = function() {
+                console.log('MediaRecorder stopped, processing video...');
+                // Video recording stopped, process it
+                processRecordedVideo();
+            };
+            
+            // Start recording
+            mediaRecorder.start(1000); // Collect data every second
+            console.log('MediaRecorder started');
+            
+            // Stop recording after 15 seconds
+            setTimeout(() => {
+                if (isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
+                    console.log('Stopping MediaRecorder after 15 seconds');
+                    mediaRecorder.stop();
+                }
+            }, 15000);
+            
+        } catch (error) {
+            console.error('Error starting MediaRecorder:', error);
+            showAlert('Error starting video recording. Using fallback method.', 'warning');
+            // Fallback to simulation
+            simulateVideoRecording();
+        }
+    } else {
+        console.error('No video stream available');
+        showAlert('No video stream available. Using fallback method.', 'warning');
+        // Fallback to simulation
+        simulateVideoRecording();
+    }
+}
+
+function simulateVideoRecording() {
+    // Simulate recording for 15 seconds (fallback)
+    setTimeout(() => {
+        if (isRecording) {
+            stopVideoCapture();
+        }
+    }, 15000);
+}
+
+function processRecordedVideo() {
+    if (recordedChunks.length === 0) {
+        showAlert('No video data recorded. Please try again.', 'danger');
+        return;
+    }
+    
+    console.log(`Processing ${recordedChunks.length} video chunks`);
+    
+    // Create blob from recorded chunks
+    const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+    console.log(`Video blob size: ${videoBlob.size} bytes`);
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('person_name', document.getElementById('person_name').value);
+    formData.append('video', videoBlob, 'registration_video.webm');
+    
+    console.log('Sending video registration request...');
+    showAlert('Processing video registration...', 'info');
+    
+    // Send to server
+    fetch('/api/video_register', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            showAlert(`🎉 Video registration successful for ${data.person_name}! Multiple angles captured and processed.`, 'success');
+            
+            // Reset form
+            document.getElementById('register-form').reset();
+            
+            // Refresh persons list
+            setTimeout(() => {
+                loadRegisteredPersons();
+            }, 1000);
+        } else {
+            showAlert('❌ Video registration failed: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Video registration error:', error);
+        showAlert('❌ Video registration error: ' + error.message, 'danger');
+    });
+}
+
+function stopVideoCapture() {
+    isRecording = false;
+    
+    // Stop video stream
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+    }
+    
+    // Hide video preview
+    document.getElementById('video-preview').style.display = 'none';
+    document.getElementById('start-recording-btn').style.display = 'block';
+    document.getElementById('stop-recording-btn').style.display = 'none';
+    document.getElementById('progress-bar').style.display = 'none';
+    
+    // Process the "recorded" video
+    processVideoRegistration();
+}
+
+function processVideoRegistration() {
+    // This function is now handled by processRecordedVideo()
+    // Keep it for backward compatibility but redirect to the real implementation
+    processRecordedVideo();
+}
+
+function registerPersonPhoto() {
+    const personName = document.getElementById('photo_person_name').value;
+    const imageFile = document.getElementById('image_file').files[0];
+    
+    if (!personName) {
+        showAlert('Please enter a person name first', 'warning');
+        return;
+    }
+    
+    if (!imageFile) {
+        showAlert('Please select an image file first', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('person_name', personName);
+    formData.append('file', imageFile);
+    
+    // Show loading state
+    const registerBtn = document.querySelector('button[onclick="registerPersonPhoto()"]');
+    const originalText = registerBtn.innerHTML;
+    registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Registering...';
+    registerBtn.disabled = true;
+    
+    fetch('/api/register', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('🎉 SUCCESS: ' + data.message, 'success');
+            
+            // Reset form
+            document.getElementById('photo-register-form').reset();
+            document.getElementById('image_preview').innerHTML = `
+                <i class="fas fa-image fa-3x text-muted"></i>
+                <p class="text-muted mt-2">No image selected</p>
+            `;
+            
+            // Refresh persons list
+            setTimeout(() => {
+                loadRegisteredPersons();
+            }, 1000);
+            
+        } else {
+            showAlert('❌ REGISTRATION FAILED: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Registration error:', error);
+        showAlert('❌ REGISTRATION ERROR: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        registerBtn.innerHTML = originalText;
+        registerBtn.disabled = false;
+    });
+}
+
+function loadRegisteredPersons() {
+    fetch('/api/persons')
+        .then(response => response.json())
+        .then(data => {
+            const personsList = document.getElementById('persons-list');
+            
+            if (data.persons && data.persons.length > 0) {
+                personsList.innerHTML = data.persons.map(person => `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="card-title mb-1">${person.name}</h6>
+                                    <p class="card-text text-muted small mb-0">
+                                        <i class="fas fa-images me-1"></i>${person.total_images} images
+                                        <span class="ms-3">
+                                            <i class="fas fa-calendar me-1"></i>Registered: ${new Date(person.created_at).toLocaleDateString()}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <button class="btn btn-outline-danger btn-sm" onclick="deletePerson(${person.id}, '${person.name}')">
+                                        <i class="fas fa-trash me-1"></i>Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                personsList.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-users fa-3x mb-3"></i>
+                        <p>No persons registered yet. Choose a registration method above!</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading persons:', error);
+            document.getElementById('persons-list').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Error loading registered persons
+                </div>
+            `;
+        });
+}
+
+function deletePerson(personId, personName) {
+    if (confirm(`Are you sure you want to delete ${personName}? This action cannot be undone.`)) {
+        fetch(`/api/delete_person/${personId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+                loadRegisteredPersons();
+            } else {
+                showAlert(data.error || 'Failed to delete person', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('An error occurred while deleting', 'danger');
+        });
+    }
+}
+
+function showAlert(message, type) {
+    const resultDiv = document.getElementById('registration-result');
+    resultDiv.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'times-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        resultDiv.style.display = 'none';
+    }, 5000);
+}
+</script>
+{% endblock %}

@@ -74,6 +74,11 @@ class FaceIDWebInterface:
             """Registration page"""
             return render_template('register.html')
         
+        @self.app.route('/video_register')
+        def video_register():
+            """Video registration page"""
+            return render_template('video_register.html')
+        
         @self.app.route('/recognize')
         def recognize_page():
             """Recognition page"""
@@ -137,6 +142,67 @@ class FaceIDWebInterface:
                 
             except Exception as e:
                 logger.error(f"Registration API error: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/api/video_register', methods=['POST'])
+        def api_video_register():
+            """API endpoint for video-based person registration"""
+            try:
+                # Get person name
+                person_name = request.form.get('person_name', '').strip()
+                if not person_name:
+                    return jsonify({'error': 'Person name is required'}), 400
+                
+                # Check if video file is provided
+                if 'video' not in request.files:
+                    return jsonify({'error': 'No video file provided'}), 400
+                
+                video_file = request.files['video']
+                if video_file.filename == '':
+                    return jsonify({'error': 'No video file selected'}), 400
+                
+                # Save video file temporarily
+                filename = secure_filename(video_file.filename)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f"{timestamp}_{filename}"
+                video_path = os.path.join(self.app.config['UPLOAD_FOLDER'], filename)
+                video_file.save(video_path)
+                
+                # Process video registration using the video registration system
+                from video_registration import VideoRegistrationSystem
+                
+                # Initialize video registration system
+                video_reg_system = VideoRegistrationSystem(self.face_id_system)
+                
+                logger.info(f"Processing video file: {video_path}")
+                logger.info(f"Video file size: {os.path.getsize(video_path)} bytes")
+                
+                # Process the video file
+                success = video_reg_system.process_video_file(video_path, person_name)
+                
+                logger.info(f"Video processing result: {success}")
+                
+                # Clean up temporary video file
+                try:
+                    os.remove(video_path)
+                    logger.info(f"Cleaned up temporary video file: {video_path}")
+                except Exception as e:
+                    logger.warning(f"Could not remove temporary video file: {e}")
+                
+                if success:
+                    return jsonify({
+                        'success': True,
+                        'message': f'Successfully registered {person_name} with video (multiple angles captured)',
+                        'person_name': person_name,
+                        'method': 'video'
+                    })
+                else:
+                    return jsonify({
+                        'error': 'Video registration failed. Please ensure the video contains clear faces and try again.'
+                    }), 500
+                
+            except Exception as e:
+                logger.error(f"Video registration API error: {e}")
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/recognize', methods=['POST'])

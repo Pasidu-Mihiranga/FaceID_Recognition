@@ -221,7 +221,7 @@ class RealTimeFaceRecognition:
         
         # Recognition settings
         self.min_confidence = 0.5
-        self.recognition_cooldown = 2.0  # seconds
+        self.recognition_cooldown = 0.3  # Reduced from 2.0 to 0.3 seconds for faster response
         self.last_recognition_time = 0
         
         # Statistics
@@ -287,30 +287,36 @@ class RealTimeFaceRecognition:
             logger.error(f"Error stopping real-time recognition: {e}")
     
     def _process_frame(self, frame: np.ndarray):
-        """Process a captured frame"""
+        """Optimized frame processing with caching and reduced recognition frequency"""
         try:
             if not self.is_running:
                 return
             
-            # Check cooldown
             current_time = time.time()
+            
+            # Use cached result if within cooldown period
             if current_time - self.last_recognition_time < self.recognition_cooldown:
-                if self.display_window:
-                    self._display_frame(frame, "Processing...")
-                return
-            
-            # Recognize faces
-            person_name, confidence, face_info = self.face_id_system.recognize_face(frame)
-            
-            # Update statistics
-            if person_name:
-                self.session_stats['recognitions'] += 1
+                if hasattr(self, '_cached_result') and self._cached_result:
+                    person_name, confidence, face_info = self._cached_result
+                else:
+                    person_name, confidence, face_info = None, 0.0, {}
             else:
-                self.session_stats['unknown_faces'] += 1
+                # Process frame for recognition
+                person_name, confidence, face_info = self.face_id_system.recognize_face(frame)
                 
-                # Save unknown face if enabled
-                if self.save_unknown_faces and face_info:
-                    self._save_unknown_face(frame, face_info)
+                # Cache the result
+                self._cached_result = (person_name, confidence, face_info)
+                self.last_recognition_time = current_time
+                
+                # Update statistics only for new recognitions
+                if person_name:
+                    self.session_stats['recognitions'] += 1
+                else:
+                    self.session_stats['unknown_faces'] += 1
+                    
+                    # Save unknown face if enabled
+                    if self.save_unknown_faces and face_info:
+                        self._save_unknown_face(frame, face_info)
             
             # Draw results
             if face_info:
@@ -319,9 +325,6 @@ class RealTimeFaceRecognition:
             # Display frame
             if self.display_window:
                 self._display_frame(frame, person_name or "Unknown")
-            
-            # Update last recognition time
-            self.last_recognition_time = current_time
             
         except Exception as e:
             logger.error(f"Frame processing error: {e}")
