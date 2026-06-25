@@ -150,7 +150,12 @@ class FaceIDSystem:
             )
             
             # Update recognition manager
-            self.face_recognizer.register_face(face_image, person_name)
+            # Use full image for deep learning models (ArcFace/FaceNet/VGGFace/DeepFace) to avoid detection failures,
+            # and cropped face image for simple/traditional models
+            if self.face_recognizer.recognizer.__class__.__name__ == 'SimpleOpenCVRecognizer':
+                self.face_recognizer.register_face(face_image_cropped, person_name)
+            else:
+                self.face_recognizer.register_face(image, person_name)
             
             logger.info(f"Successfully registered {person_name} (Person ID: {person_id}, Face ID: {face_id})")
             return True
@@ -408,7 +413,10 @@ class FaceIDSystem:
                 face_info['image_quality'] = image_quality
             else:
                 # Fallback to traditional recognition
-                person_name, confidence = self.face_recognizer.recognize_face(processed_face)
+                if self.face_recognizer.recognizer.__class__.__name__ == 'SimpleOpenCVRecognizer':
+                    person_name, confidence = self.face_recognizer.recognize_face(processed_face)
+                else:
+                    person_name, confidence = self.face_recognizer.recognize_face(image)
                 face_info['recognition_method'] = 'traditional_fallback'
                 face_info['adaptive_threshold'] = adaptive_threshold
                 face_info['threshold_reason'] = threshold_reason
