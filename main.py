@@ -35,24 +35,32 @@ class FaceIDSystem:
     def __init__(self, 
                  detector_type: str = 'opencv',
                  recognition_model: str = 'deepface',
-                     recognition_threshold: float = 0.15,
-                 learning_threshold: float = 0.7):
+                 recognition_threshold: float = 0.15,
+                 learning_threshold: float = 0.7,
+                 face_detector = None,
+                 face_recognizer = None,
+                 database = None,
+                 learning_manager = None):
         """
         Initialize the Face ID System
         
         Args:
-            detector_type: Face detector type ('mtcnn', 'retinaface', 'opencv', 'dlib')
+            detector_type: Face detector type ('mtcnn', 'retinaface', 'opencv', 'dlib', 'opencv_dnn')
             recognition_model: Recognition model type ('arcface', 'facenet', 'vggface')
             recognition_threshold: Threshold for face recognition
             learning_threshold: Threshold for continuous learning
+            face_detector: Optional face detector instance
+            face_recognizer: Optional face recognizer instance
+            database: Optional database instance
+            learning_manager: Optional continuous learning manager instance
         """
         logger.info("Initializing Face ID System...")
         
         # Initialize components
-        self.face_detector = create_face_detector(detector_type)
-        self.face_recognizer = create_face_recognizer(recognition_model, recognition_threshold)
-        self.database = FaceDatabase()
-        self.learning_manager = ContinuousLearningManager(
+        self.face_detector = face_detector if face_detector is not None else create_face_detector(detector_type)
+        self.face_recognizer = face_recognizer if face_recognizer is not None else create_face_recognizer(recognition_model, recognition_threshold)
+        self.database = database if database is not None else FaceDatabase()
+        self.learning_manager = learning_manager if learning_manager is not None else ContinuousLearningManager(
             self.face_recognizer, 
             self.database,
             learning_threshold
@@ -154,6 +162,12 @@ class FaceIDSystem:
             face_info = faces[0]
             face_image_cropped = self.face_detector.extract_face(image, face_info)
             
+            # Quality gate validation check
+            is_accepted, reason, metrics = self.advanced_processor.should_accept_for_registration(face_image_cropped)
+            if not is_accepted:
+                logger.warning(f"Registration rejected by quality gate for {person_name}: {reason}")
+                return False
+            
             # Extract embedding (pass the full image to avoid double-cropping detection failures)
             embedding = self.face_recognizer.recognizer.extract_embedding(image)
             
@@ -167,7 +181,8 @@ class FaceIDSystem:
                 embedding=embedding,
                 face_bbox=face_info['bbox'],
                 landmarks=face_info['landmarks'],
-                confidence=face_info['confidence']
+                confidence=face_info['confidence'],
+                quality_score=self.advanced_processor._calculate_overall_quality(metrics)
             )
             
             # Update recognition manager
@@ -1083,6 +1098,10 @@ def main():
     
     # Load environment variables
     load_dotenv()
+    
+    # Configure structured logging
+    from src.core.logging_config import setup_logging
+    setup_logging()
     
     try:
         # Extract environment variables with fallbacks

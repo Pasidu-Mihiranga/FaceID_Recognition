@@ -333,3 +333,42 @@ class AdvancedFaceProcessor:
             'lighting_condition': 'unknown',
             'image_quality': 0.0
         }
+
+    def should_accept_for_registration(self, face_image: np.ndarray) -> Tuple[bool, str, Dict[str, float]]:
+        """
+        Quality gate for face registration.
+        Validates sharpness > 0.4, contrast > 0.3, and face dimensions >= 160x160.
+        
+        Args:
+            face_image: Cropped face image (before resizing to target size)
+            
+        Returns:
+            Tuple of (is_accepted: bool, reason_string: str, metrics: dict)
+        """
+        try:
+            h, w = face_image.shape[:2]
+            
+            # Check dimensions (must be >= 160x160)
+            if h < 160 or w < 160:
+                reason = f"Face resolution too low ({w}x{h}). Minimum required is 160x160."
+                return False, reason, {'height': h, 'width': w}
+                
+            metrics = self._assess_quality(face_image)
+            
+            # Check sharpness
+            sharpness = metrics.get('sharpness', 0.0)
+            if sharpness < 0.4:
+                reason = f"Face image is too blurry (sharpness: {sharpness:.2f} < 0.4). Please use a clearer image."
+                return False, reason, metrics
+                
+            # Check contrast
+            contrast = metrics.get('contrast', 0.0)
+            if contrast < 0.3:
+                reason = f"Face image has insufficient contrast (contrast: {contrast:.2f} < 0.3). Please adjust lighting."
+                return False, reason, metrics
+                
+            return True, "Passed quality gate", metrics
+            
+        except Exception as e:
+            logger.error(f"Error in should_accept_for_registration: {e}")
+            return False, f"Quality evaluation error: {str(e)}", {}
