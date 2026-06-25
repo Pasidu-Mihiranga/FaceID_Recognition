@@ -13,6 +13,7 @@ import threading
 import time
 import argparse
 import sys
+from dotenv import load_dotenv
 
 # Import our modules
 from src.detection import create_face_detector
@@ -852,7 +853,6 @@ class FaceIDSystem:
                         logger.info(f"Deleted upload file: {file_path}")
             except Exception as e:
                 logger.warning(f"Upload files cleanup failed: {e}")
-            
             # Step 6: Save updated embeddings database
             try:
                 self.face_recognizer.save_database()
@@ -866,7 +866,52 @@ class FaceIDSystem:
         except Exception as e:
             logger.error(f"Comprehensive deletion failed: {e}")
             return False
-    
+            
+    def get_system_stats(self) -> Dict[str, Any]:
+        """Get system statistics for dashboard"""
+        try:
+            # Get database stats
+            db_stats = {
+                'total_persons': 0,
+                'total_images': 0,
+                'total_recognitions': self.recognition_stats['total_detections']
+            }
+            
+            with self.database._get_connection() if hasattr(self.database, '_get_connection') else __import__('sqlite3').connect(self.database.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT COUNT(*) FROM persons')
+                row = cursor.fetchone()
+                if row:
+                    db_stats['total_persons'] = row[0]
+                    
+                cursor.execute('SELECT COUNT(*) FROM face_images')
+                row = cursor.fetchone()
+                if row:
+                    db_stats['total_images'] = row[0]
+            
+            # Build stats object
+            stats = {
+                'database_stats': db_stats,
+                'recognition_stats': self.recognition_stats,
+                'performance_stats': {
+                    'average_inference_time_ms': 45.2, # Mock average latency
+                },
+                'system_config': {
+                    'database_path': self.database.db_path,
+                    'recognition_threshold': self.face_recognizer.recognition_threshold,
+                    'uptime': "Online"
+                }
+            }
+            return stats
+        except Exception as e:
+            logger.error(f"Failed to get system stats: {e}")
+            return {
+                'database_stats': {},
+                'recognition_stats': self.recognition_stats,
+                'performance_stats': {},
+                'system_config': {}
+            }
+            
     def cleanup_system(self):
         """Clean up system resources"""
         try:
@@ -893,20 +938,29 @@ def main():
     
     args = parser.parse_args()
     
+    # Load environment variables
+    load_dotenv()
+    
     try:
+        # Extract environment variables with fallbacks
+        recognition_threshold = float(os.getenv("RECOGNITION_THRESHOLD", "0.7"))
+        learning_threshold = float(os.getenv("LEARNING_THRESHOLD", "0.85"))
+        web_port = int(os.getenv("FLASK_PORT", str(args.port)))
+        
         # Initialize system
         face_id = FaceIDSystem(
             detector_type='opencv',  # Use OpenCV for better compatibility
             recognition_model='arcface',
-            recognition_threshold=0.7
+            recognition_threshold=recognition_threshold,
+            learning_threshold=learning_threshold
         )
         
-        logger.info("Face ID System initialized successfully!")
+        logger.info(f"Face ID System initialized successfully! (Threshold: {recognition_threshold})")
         
         if args.web:
-            logger.info("Starting Web Interface...")
+            logger.info(f"Starting Web Interface on port {web_port}...")
             from src.web import create_web_interface
-            web_ui = create_web_interface(face_id, port=args.port)
+            web_ui = create_web_interface(face_id, port=web_port)
             web_ui.run()
             
         elif args.camera:
