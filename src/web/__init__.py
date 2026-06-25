@@ -19,6 +19,8 @@ import secrets
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from .auth import require_api_key, rate_limit
+
 class FaceIDWebInterface:
     """Web interface for Face ID System"""
     
@@ -53,6 +55,9 @@ class FaceIDWebInterface:
         
         # Ensure upload directory exists
         os.makedirs(self.app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        # Setup WebSockets
+        self._setup_websockets()
         
         # Setup routes
         self._setup_routes()
@@ -101,6 +106,8 @@ class FaceIDWebInterface:
                 return "Debug page not found. Run: python create_debug_page.py"
         
         @self.app.route('/api/register', methods=['POST'])
+        @require_api_key
+        @rate_limit(limit=5, period=60)
         def api_register():
             """API endpoint for person registration"""
             try:
@@ -146,6 +153,8 @@ class FaceIDWebInterface:
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/video_register', methods=['POST'])
+        @require_api_key
+        @rate_limit(limit=2, period=60)
         def api_video_register():
             """API endpoint for video-based person registration"""
             try:
@@ -207,6 +216,7 @@ class FaceIDWebInterface:
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/recognize', methods=['POST'])
+        @rate_limit(limit=20, period=60)
         def api_recognize():
             """API endpoint for face recognition"""
             try:
@@ -257,6 +267,7 @@ class FaceIDWebInterface:
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/recognize_base64', methods=['POST'])
+        @rate_limit(limit=20, period=60)
         def api_recognize_base64():
             """API endpoint for face recognition with base64 image"""
             try:
@@ -304,6 +315,109 @@ class FaceIDWebInterface:
                 logger.error(f"Base64 recognition API error: {e}")
                 return jsonify({'error': str(e)}), 500
         
+        @self.app.route('/api/recognize_batch', methods=['POST'])
+        @rate_limit(limit=10, period=60)
+        def api_recognize_batch():
+            """API endpoint for batch face recognition"""
+            try:
+                results = []
+                
+                # Check for base64 JSON payload first
+                if request.is_json:
+                    data = request.get_json()
+                    images_data = data.get('images', [])
+                    if not images_data:
+                        return jsonify({'error': 'No images list provided in JSON'}), 400
+                        
+                    for i, image_data in enumerate(images_data):
+                        try:
+                            if image_data.startswith('data:image'):
+                                image_data = image_data.split(',')[1]
+                            image_bytes = base64.b64decode(image_data)
+                            nparr = np.frombuffer(image_bytes, np.uint8)
+                            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            
+                            if image is None:
+                                results.append({'index': i, 'error': 'Invalid image data'})
+                                continue
+                                
+                            person_name, confidence, face_info = self.face_id_system.recognize_face(image)
+                            
+                            face_bbox = None
+                            if face_info and 'bbox' in face_info:
+                                bbox = face_info['bbox']
+                                face_bbox = [int(x) for x in bbox] if bbox else None
+                                
+                            is_live = face_info.get('is_live', True) if face_info else True
+                            liveness_score = face_info.get('liveness_score', 1.0) if face_info else 1.0
+                            
+                            results.append({
+                                'index': i,
+                                'person_name': person_name,
+                                'confidence': float(confidence),
+                                'face_detected': face_info is not None,
+                                'face_bbox': face_bbox,
+                                'is_live': is_live,
+                                'liveness_score': float(liveness_score)
+                            })
+                        except Exception as inner_e:
+                            results.append({'index': i, 'error': str(inner_e)})
+                            
+                # Otherwise, check for multipart files
+                else:
+                    if not request.files:
+                        return jsonify({'error': 'No files provided'}), 400
+                        
+                    files = request.files.getlist('file')
+                    if not files or (len(files) == 1 and files[0].filename == ''):
+                        files = [f for f_list in request.files.lists() for f in f_list[1]]
+                        
+                    if not files or len(files) == 0:
+                        return jsonify({'error': 'No files selected'}), 400
+                        
+                    for i, file in enumerate(files):
+                        try:
+                            if not self.allowed_file(file.filename):
+                                results.append({'index': i, 'filename': file.filename, 'error': 'Invalid file type'})
+                                continue
+                                
+                            file_bytes = file.read()
+                            nparr = np.frombuffer(file_bytes, np.uint8)
+                            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            
+                            if image is None:
+                                results.append({'index': i, 'filename': file.filename, 'error': 'Invalid image'})
+                                continue
+                                
+                            person_name, confidence, face_info = self.face_id_system.recognize_face(image)
+                            
+                            face_bbox = None
+                            if face_info and 'bbox' in face_info:
+                                bbox = face_info['bbox']
+                                face_bbox = [int(x) for x in bbox] if bbox else None
+                                
+                            is_live = face_info.get('is_live', True) if face_info else True
+                            liveness_score = face_info.get('liveness_score', 1.0) if face_info else 1.0
+                            
+                            results.append({
+                                'index': i,
+                                'filename': file.filename,
+                                'person_name': person_name,
+                                'confidence': float(confidence),
+                                'face_detected': face_info is not None,
+                                'face_bbox': face_bbox,
+                                'is_live': is_live,
+                                'liveness_score': float(liveness_score)
+                            })
+                        except Exception as inner_e:
+                            results.append({'index': i, 'filename': file.filename, 'error': str(inner_e)})
+                            
+                return jsonify({'results': results})
+                
+            except Exception as e:
+                logger.error(f"Batch recognition API error: {e}")
+                return jsonify({'error': str(e)}), 500
+        
         @self.app.route('/api/stats')
         def api_stats():
             """API endpoint for system statistics"""
@@ -341,6 +455,7 @@ class FaceIDWebInterface:
                 return jsonify({'error': str(e)}), 500
         
         @self.app.route('/api/delete_person/<int:person_id>', methods=['DELETE'])
+        @require_api_key
         def api_delete_person(person_id):
             """API endpoint for deleting a person"""
             try:
@@ -409,11 +524,73 @@ class FaceIDWebInterface:
                 logger.error(f"Export API error: {e}")
                 return jsonify({'error': str(e)}), 500
     
+    def _setup_websockets(self):
+        """Setup WebSockets for real-time video stream processing"""
+        try:
+            from flask_socketio import SocketIO, emit
+            self.socketio = SocketIO(self.app, cors_allowed_origins="*")
+            self.socketio_available = True
+            logger.info("Initializing WebSocket routes on /live_stream...")
+            
+            @self.socketio.on('connect')
+            def handle_connect():
+                logger.info("WebSocket client connected to live stream")
+                emit('status', {'connected': True, 'msg': 'Connected to FaceID Live Stream'})
+                
+            @self.socketio.on('frame')
+            def handle_frame(data):
+                """Handle base64-encoded frame from client"""
+                try:
+                    if not data or 'image' not in data:
+                        emit('error', {'error': 'No image data provided'})
+                        return
+                    
+                    image_data = data['image']
+                    if image_data.startswith('data:image'):
+                        image_data = image_data.split(',')[1]
+                    
+                    image_bytes = base64.b64decode(image_data)
+                    nparr = np.frombuffer(image_bytes, np.uint8)
+                    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    
+                    if image is None:
+                        emit('error', {'error': 'Failed to decode image frame'})
+                        return
+                    
+                    # Run recognition on all faces in the frame
+                    results = self.face_id_system.recognize_faces(image)
+                    
+                    # Format results to be JSON serializable
+                    formatted_results = []
+                    for r in results:
+                        formatted_results.append({
+                            'person_name': r.get('person_name'),
+                            'confidence': float(r.get('confidence', 0.0)),
+                            'bbox': r.get('bbox'),
+                            'recognition_method': r.get('recognition_method'),
+                            'is_live': r.get('is_live', True),
+                            'liveness_score': float(r.get('liveness_score', 1.0))
+                        })
+                    
+                    emit('response', {'results': formatted_results})
+                    
+                except Exception as e:
+                    logger.error(f"WebSocket frame processing error: {e}")
+                    emit('error', {'error': str(e)})
+                    
+        except ImportError:
+            self.socketio_available = False
+            self.socketio = None
+            logger.warning("flask_socketio is not installed. WebSockets functionality will be bypassed. Run 'pip install flask-socketio' to enable.")
+
     def run(self, debug=False):
         """Run the web interface"""
         try:
             logger.info(f"Starting Face ID Web Interface on {self.host}:{self.port}")
-            self.app.run(host=self.host, port=self.port, debug=debug)
+            if hasattr(self, 'socketio_available') and self.socketio_available and self.socketio:
+                self.socketio.run(self.app, host=self.host, port=self.port, debug=debug)
+            else:
+                self.app.run(host=self.host, port=self.port, debug=debug)
         except Exception as e:
             logger.error(f"Web interface failed to start: {e}")
 
