@@ -11,6 +11,8 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 import threading
 import time
+import argparse
+import sys
 
 # Import our modules
 from src.detection import create_face_detector
@@ -883,7 +885,14 @@ class FaceIDSystem:
             logger.error(f"System cleanup failed: {e}")
 
 def main():
-    """Main function for testing the Face ID System"""
+    """Main function for the Face ID System"""
+    parser = argparse.ArgumentParser(description="Face ID Recognition System")
+    parser.add_argument("--web", action="store_true", help="Start the web interface")
+    parser.add_argument("--camera", action="store_true", help="Start the camera recognition interface")
+    parser.add_argument("--port", type=int, default=5000, help="Port for the web interface")
+    
+    args = parser.parse_args()
+    
     try:
         # Initialize system
         face_id = FaceIDSystem(
@@ -892,24 +901,32 @@ def main():
             recognition_threshold=0.7
         )
         
-        print("Face ID System initialized successfully!")
-        print("Available commands:")
-        print("1. Register a person: face_id.register_person('image_path', 'person_name')")
-        print("2. Start camera recognition: face_id.start_camera_recognition()")
-        print("3. Get system stats: face_id.get_system_stats()")
-        print("4. Exit: Press 'q' in camera window or Ctrl+C")
+        logger.info("Face ID System initialized successfully!")
         
-        # Example usage
-        # face_id.register_person("path/to/image.jpg", "John Doe")
-        # face_id.start_camera_recognition()
-        
-        # Keep the system running
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\nShutting down Face ID System...")
-            face_id.cleanup_system()
+        if args.web:
+            logger.info("Starting Web Interface...")
+            from src.web import create_web_interface
+            web_ui = create_web_interface(face_id, port=args.port)
+            web_ui.run()
+            
+        elif args.camera:
+            logger.info("Starting Camera Recognition...")
+            face_id.start_camera_recognition()
+            
+            # Keep the system running while camera is active
+            try:
+                while face_id.is_running:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\nShutting down camera interface...")
+                face_id.cleanup_system()
+                
+        else:
+            print("Face ID System initialized successfully!")
+            print("Please specify a mode to run:")
+            print("  python main.py --web      (Starts the beautiful Neumorphic Web UI)")
+            print("  python main.py --camera   (Starts the interactive webcam feed)")
+            print("  jupyter notebook notebooks/ (Starts ML experiment notebooks)")
             
     except Exception as e:
         logger.error(f"Face ID System failed to start: {e}")

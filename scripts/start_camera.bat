@@ -12,13 +12,13 @@ echo.
 
 REM Test system
 echo Testing system...
-python test_system.py
+python src/tools/test_system.py
 echo.
 
 REM Start camera recognition
 echo Starting camera recognition...
 echo Press Ctrl+C to stop
 echo.
-python face_id_system.py --camera
+python main.py --camera
 
 pause

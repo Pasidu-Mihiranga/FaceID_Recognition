@@ -20,6 +20,6 @@ echo Starting web interface...
 echo Access at: http://localhost:5000
 echo Press Ctrl+C to stop
 echo.
-python face_id_system.py --web
+python main.py --web
 
 pause
