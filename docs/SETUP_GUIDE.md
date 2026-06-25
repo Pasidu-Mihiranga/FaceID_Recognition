@@ -4,7 +4,7 @@ This guide describes how to set up the environment, install the dependencies, an
 
 ---
 
-## 📋 System Prerequisites
+## System Prerequisites
 
 Before proceeding, ensure your development system meets the following requirements:
 *   **Operating System**: Windows 10/11
@@ -14,7 +14,7 @@ Before proceeding, ensure your development system meets the following requiremen
 
 ---
 
-## 🎯 Step-by-Step Installation
+## Step-by-Step Installation
 
 ### Step 1: Clone the Repository
 Open a terminal (Command Prompt or PowerShell) and clone the repository:
@@ -60,7 +60,7 @@ FACEID_SECRET_KEY=generate_your_random_hex_string_here
 
 ---
 
-## 🚀 System Verification & Startup
+## System Verification & Startup
 
 ### Start the Neumorphic Web Dashboard
 Double-click the batch file:
@@ -85,7 +85,7 @@ python main.py --camera
 
 ---
 
-## 🔧 Troubleshooting Common Setup Issues
+## Troubleshooting Common Setup Issues
 
 ### 1. NumPy/OpenCV DLL Load Errors
 *   **Symptom**: `ImportError: DLL load failed while importing cv2`

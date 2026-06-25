@@ -4,7 +4,7 @@ This guide explains how to operate the Face ID Recognition system, describing co
 
 ---
 
-## 🖥️ Command-Line Interface (CLI)
+## Command-Line Interface (CLI)
 
 The main entry point for the system is [main.py](file:///c:/Users/PMIHIR/Desktop/FaceID/FaceID_Recognition/main.py). It parses parameters to run in either web-server or interactive-camera recognition mode.
 
@@ -22,7 +22,7 @@ python main.py [OPTIONS]
 
 ---
 
-## 🏃 Running the Services
+## Running the Services
 
 ### 1. Neumorphic Web Dashboard (Recommended)
 This launches a browser-accessible web application with a complete UI for registration, dashboard analytics, and diagnostic logs.
@@ -36,7 +36,7 @@ This starts a local window capture stream showing frames from your webcam in rea
 
 ---
 
-## 🎨 Web Interface Workflows
+## Web Interface Workflows
 
 Once the Flask application is running at `http://localhost:5000`, the following features are available in the neumorphic navigation bar:
 
@@ -67,7 +67,7 @@ Monitors database state and performance statistics.
 
 ---
 
-## 🚨 System Shutdown & Clean Up
+## System Shutdown & Clean Up
 
 When running python processes or camera hooks, proper resource cleanup prevents resource locks:
 

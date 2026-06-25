@@ -4,7 +4,7 @@ This reference details the technical implementation, algorithmic choices, and da
 
 ---
 
-## 🏗️ Core Package Layout
+## Core Package Layout
 
 The codebase uses a modular package structure separating configuration, processing, databases, and network adapters:
 
@@ -19,7 +19,7 @@ The codebase uses a modular package structure separating configuration, processi
 
 ---
 
-## 🎨 Preprocessing Pipeline
+## Preprocessing Pipeline
 
 Incoming frames undergo multi-step alignment and enhancement inside `AdvancedFaceProcessor` to standardize feature maps:
 
@@ -34,7 +34,7 @@ Incoming frames undergo multi-step alignment and enhancement inside `AdvancedFac
 
 ---
 
-## 🧠 Feature Extraction & Recognition Recognizers
+## Feature Extraction & Recognition Recognizers
 
 ```mermaid
 graph TD
@@ -66,7 +66,7 @@ The system dynamically computes the classification threshold based on face quali
 
 ---
 
-## 🔒 Biometric Protection Modules
+## Biometric Protection Modules
 
 ### 1. Convolutional Liveness Detection
 *   **Model**: MobileNetV2 binary classifier trained to distinguish between live subjects (Class 1) and spoof attempts (Class 0, e.g. printed paper, monitors, screens).
@@ -80,7 +80,7 @@ Ensures that low-quality faces (blurry, dark, low contrast, small bounding boxes
 
 ---
 
-## 💾 NumPy Array Serialization in SQLite
+## NumPy Array Serialization in SQLite
 
 To avoid Python pickle vulnerability threats (arbitrary code execution during deserialization), face embeddings are stored in SQLite using binary NumPy serialization:
 
@@ -104,7 +104,7 @@ To avoid Python pickle vulnerability threats (arbitrary code execution during de
 
 ---
 
-## ⚡ Performance Optimizations
+## Performance Optimizations
 
 1.  **Skip-Frame webcam rendering**: The video capture loop skips recognition inference on 2 out of every 3 frames, relying on cached bounding boxes. This keeps rendering speed high (60 FPS) while maintaining recognition throughput.
 2.  **Threaded Continuous Learning**: Recognitions that exceed the learning threshold trigger asynchronous database updates in a background thread, preventing camera UI stutter.

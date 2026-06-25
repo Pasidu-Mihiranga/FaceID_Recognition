@@ -4,7 +4,7 @@ This changelog records the development history, release versions, and phase impl
 
 ---
 
-## 🌟 Version 1.0.0 (Release) — Liveness Integration & Final Consolidation
+## Version 1.0.0 (Release) — Liveness Integration & Final Consolidation
 *   **Release Date**: June 2026
 *   **Summary**: Completed liveness verification integration and reorganized documentation.
 
@@ -15,7 +15,7 @@ This changelog records the development history, release versions, and phase impl
 
 ---
 
-## 🚀 Phase 5 & 6 — ML Foundation & Advanced Anti-Spoofing
+## Phase 5 & 6 — ML Foundation & Advanced Anti-Spoofing
 *   **Development Period**: Mid 2026
 
 ### Metric & Transfer Learning
@@ -32,7 +32,7 @@ This changelog records the development history, release versions, and phase impl
 
 ---
 
-## 🎨 Phase 4.5 — Neumorphism (Soft UI) Dashboard Redesign
+## Phase 4.5 — Neumorphism (Soft UI) Dashboard Redesign
 *   **Development Period**: Early 2026
 
 ### Front-End Overhaul
@@ -42,7 +42,7 @@ This changelog records the development history, release versions, and phase impl
 
 ---
 
-## 📁 Phase 1 & 2 — Re-Architecting & Code Cleanups
+## Phase 1 & 2 — Re-Architecting & Code Cleanups
 *   **Development Period**: Late 2025
 
 ### Code Integrity
