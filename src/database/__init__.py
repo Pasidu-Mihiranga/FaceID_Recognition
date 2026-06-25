@@ -156,10 +156,9 @@ class FaceDatabase:
             Face image ID
         """
         try:
-            # Save embedding
-            embedding_path = f"data/embeddings/face_{person_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-            with open(embedding_path, 'wb') as f:
-                pickle.dump(embedding, f)
+            # Save embedding using numpy (faster and more secure than pickle)
+            embedding_path = f"data/embeddings/face_{person_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.npy"
+            np.save(embedding_path, embedding)
             
             # Create thumbnail
             thumbnail_path = self._create_thumbnail(image_path, person_id)
@@ -306,9 +305,12 @@ class FaceDatabase:
                 for row in rows:
                     embedding_path = row[0]
                     if os.path.exists(embedding_path):
-                        with open(embedding_path, 'rb') as f:
-                            embedding = pickle.load(f)
-                            embeddings.append(embedding)
+                        if embedding_path.endswith('.pkl'):
+                            with open(embedding_path, 'rb') as f:
+                                embedding = pickle.load(f)
+                        else:
+                            embedding = np.load(embedding_path)
+                        embeddings.append(embedding)
                 
                 return embeddings
                 
@@ -372,28 +374,35 @@ class FaceDatabase:
     def get_recognition_stats(self, days: int = 30) -> Dict:
         """Get recognition statistics for the last N days"""
         try:
+            # Validate days parameter (SQLite datetime modifier requires string interpolation,
+            # but we ensure 'days' is a safe integer to prevent SQL injection)
+            days = int(days)
+            if days < 0:
+                days = 30
+            day_modifier = f'-{days} days'
+            
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
                 # Total recognitions
                 cursor.execute('''
                     SELECT COUNT(*) FROM recognition_logs 
-                    WHERE recognized_at >= datetime('now', '-{} days')
-                '''.format(days))
+                    WHERE recognized_at >= datetime('now', ?)
+                ''', (day_modifier,))
                 total_recognitions = cursor.fetchone()[0]
                 
                 # Successful recognitions
                 cursor.execute('''
                     SELECT COUNT(*) FROM recognition_logs 
-                    WHERE recognized_at >= datetime('now', '-{} days') AND is_unknown = FALSE
-                '''.format(days))
+                    WHERE recognized_at >= datetime('now', ?) AND is_unknown = FALSE
+                ''', (day_modifier,))
                 successful_recognitions = cursor.fetchone()[0]
                 
                 # Unknown faces
                 cursor.execute('''
                     SELECT COUNT(*) FROM recognition_logs 
-                    WHERE recognized_at >= datetime('now', '-{} days') AND is_unknown = TRUE
-                '''.format(days))
+                    WHERE recognized_at >= datetime('now', ?) AND is_unknown = TRUE
+                ''', (day_modifier,))
                 unknown_faces = cursor.fetchone()[0]
                 
                 # Most recognized persons
@@ -401,11 +410,11 @@ class FaceDatabase:
                     SELECT p.name, COUNT(*) as count 
                     FROM recognition_logs rl
                     JOIN persons p ON rl.person_id = p.id
-                    WHERE rl.recognized_at >= datetime('now', '-{} days') AND rl.is_unknown = FALSE
+                    WHERE rl.recognized_at >= datetime('now', ?) AND rl.is_unknown = FALSE
                     GROUP BY p.id, p.name
                     ORDER BY count DESC
                     LIMIT 10
-                '''.format(days))
+                ''', (day_modifier,))
                 top_persons = cursor.fetchall()
                 
                 return {

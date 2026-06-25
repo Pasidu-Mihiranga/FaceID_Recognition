@@ -13,12 +13,12 @@ import threading
 import time
 
 # Import our modules
-from src.face_detection import create_face_detector
-from src.face_recognition import create_face_recognizer
+from src.detection import create_face_detector
+from src.recognition import create_face_recognizer
 from src.database import FaceDatabase
-from src.continuous_learning import ContinuousLearningManager
-from src.face_identity_manager import FaceIdentityManager
-from src.advanced_face_processor import AdvancedFaceProcessor
+from src.learning import ContinuousLearningManager
+from src.recognition.face_identity_manager import FaceIdentityManager
+from src.processing.advanced_face_processor import AdvancedFaceProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -123,14 +123,8 @@ class FaceIDSystem:
                     faces = detected_faces
                 
                 if not faces:
-                    logger.warning("No faces detected even with lenient parameters - using entire image as fallback")
-                    # Create a fallback face detection using the entire image
-                    h, w = image.shape[:2]
-                    faces = [{
-                        'bbox': (0, 0, w, h),
-                        'landmarks': None,
-                        'confidence': 0.5  # Lower confidence for fallback
-                    }]
+                    logger.warning("No faces detected even with lenient parameters - registration aborted")
+                    return False
             
             # Use the first detected face
             face_info = faces[0]
@@ -468,6 +462,109 @@ class FaceIDSystem:
         except Exception as e:
             logger.error(f"Face recognition failed: {e}")
             return None, 0.0, {}
+    
+    def recognize_faces(self, image: np.ndarray) -> List[Dict[str, Any]]:
+        """
+        Recognize ALL faces in an image (multi-face recognition).
+        
+        Unlike recognize_face() which returns only the first face,
+        this method processes every detected face and returns results
+        for all of them.
+        
+        Args:
+            image: Input image (BGR format)
+            
+        Returns:
+            List of dicts, each containing:
+                - person_name: str or None
+                - confidence: float
+                - bbox: (x, y, w, h) tuple
+                - recognition_method: str
+        """
+        results = []
+        
+        try:
+            # Detect all faces
+            faces = self.face_detector.detect_faces(image)
+            if not faces:
+                return results
+            
+            for face_info in faces:
+                try:
+                    # Process face with advanced pipeline
+                    processed_data = self.advanced_processor.process_face_for_recognition(
+                        image, face_info['bbox']
+                    )
+                    processed_face = processed_data['processed_face']
+                    quality_metrics = processed_data['quality_metrics']
+                    
+                    # Extract embedding
+                    try:
+                        enhanced_face = self._enhance_image_for_recognition(processed_face)
+                        embedding = self.face_recognizer.recognizer.extract_embedding(enhanced_face)
+                        normalized_embedding = self.advanced_processor.normalize_features(embedding)
+                    except Exception:
+                        # Fallback to traditional recognition for this face
+                        person_name, confidence = self.face_recognizer.recognize_face(processed_face)
+                        results.append({
+                            'person_name': person_name,
+                            'confidence': confidence,
+                            'bbox': tuple(int(x) for x in face_info['bbox']),
+                            'recognition_method': 'traditional_fallback'
+                        })
+                        continue
+                    
+                    # Try identity-based recognition
+                    identity_match, identity_confidence, match_info = (
+                        self.identity_manager.match_identity(normalized_embedding)
+                    )
+                    
+                    # Apply adaptive thresholding
+                    adaptive_threshold, threshold_reason = (
+                        self.advanced_processor.adaptive_thresholding(
+                            identity_confidence, quality_metrics
+                        )
+                    )
+                    
+                    if identity_match and identity_confidence >= adaptive_threshold:
+                        person_name = identity_match
+                        confidence = identity_confidence
+                        method = 'identity_adaptive'
+                    else:
+                        # Fallback to traditional recognition
+                        person_name, confidence = self.face_recognizer.recognize_face(processed_face)
+                        method = 'traditional_fallback'
+                    
+                    results.append({
+                        'person_name': person_name,
+                        'confidence': float(confidence),
+                        'bbox': tuple(int(x) for x in face_info['bbox']),
+                        'recognition_method': method,
+                        'image_quality': processed_data.get('image_quality', 0.0),
+                        'lighting_condition': processed_data.get('lighting_condition', 'unknown')
+                    })
+                    
+                    # Update stats
+                    self.recognition_stats['total_detections'] += 1
+                    if person_name:
+                        self.recognition_stats['successful_recognitions'] += 1
+                    else:
+                        self.recognition_stats['unknown_faces'] += 1
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to process one face: {e}")
+                    results.append({
+                        'person_name': None,
+                        'confidence': 0.0,
+                        'bbox': tuple(int(x) for x in face_info['bbox']),
+                        'recognition_method': 'error'
+                    })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Multi-face recognition failed: {e}")
+            return results
     
     def start_camera_recognition(self, camera_index: int = 0, 
                                display_window: bool = True) -> bool:

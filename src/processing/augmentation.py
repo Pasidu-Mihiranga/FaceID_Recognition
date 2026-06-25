@@ -117,21 +117,16 @@ class FaceDataAugmentation:
             # 1. Lighting Variations (always apply)
             augmented = self._apply_lighting_variations(augmented)
             
-            # 2. Image Filters (70% chance)
-            if random.random() < 0.7:
-                augmented = self._apply_image_filters(augmented)
-            
-            # 3. Geometric Transformations (50% chance)
-            if random.random() < 0.5:
-                augmented = self._apply_geometric_transforms(augmented)
-            
-            # 4. Quality Variations (40% chance)
-            if random.random() < 0.4:
+            # 2. Quality Variations (30% chance)
+            if random.random() < 0.3:
                 augmented = self._apply_quality_variations(augmented)
             
-            # 5. Color Variations (60% chance)
-            if random.random() < 0.6:
+            # 3. Color Variations (40% chance)
+            if random.random() < 0.4:
                 augmented = self._apply_color_variations(augmented)
+            
+            # Note: Geometric transforms (rotation, scaling) and heavy filters 
+            # were removed as they corrupt facial alignment for ArcFace/DeepFace
             
             return augmented
             

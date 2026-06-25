@@ -138,21 +138,18 @@ data/learning_temp_*
 # Version number files (accidentally created)
 [0-9]*\.[0-9]*\.[0-9]*
 
-# Debug and temporary files
-debug_*.py
-debug_*.jpg
-debug_*.html
-test_*.py
-create_*.py
-improve_*.py
-implement_*.py
-integrate_*.py
-rebuild_*.py
-robust_*.py
-simple_*.py
-final_*.py
-advanced_*.py
-deepface_*.py
+# Debug and temporary files (root only, not in src/ or tests/)
+/debug_*.py
+/debug_*.jpg
+/debug_*.html
+/improve_*.py
+/implement_*.py
+/integrate_*.py
+/rebuild_*.py
+/robust_*.py
+/simple_*.py
+/final_*.py
+/deepface_*.py
 
 # Backup files
 *.backup
@@ -163,8 +160,4 @@ deepface_*.py
 *_FIXED.md
 *_DEBUG*.md
 *_TROUBLESHOOTING.md
-*_GUIDE.md
-*_SUMMARY.md
-*_STATUS.md
-*_REDESIGNED.md
 *_COMPLETELY_FIXED.md
