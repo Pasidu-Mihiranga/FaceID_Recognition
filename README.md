@@ -1,290 +1,157 @@
-# Face ID System
+# Face ID Recognition System
 
-A comprehensive face recognition system with continuous learning capabilities, built using state-of-the-art computer vision and machine learning technologies.
+A production-ready, highly advanced biometric facial recognition and continuous learning system designed with state-of-the-art computer vision algorithms, PyTorch deep learning pipelines, and a modern Neumorphic (Soft UI) web interface.
 
-## 🌟 Features
+This repository features advanced metric learning implementations, transfer learning/fine-tuning pipelines, convolutional liveness detection (anti-spoofing), face image quality assessment (FIQA), and rigorous offline biometric benchmarking.
 
-### Core Capabilities
-- **Face Registration**: Upload and register faces with names
-- **Face Recognition**: Real-time face identification from images or camera
-- **Continuous Learning**: Automatically improves recognition with new encounters
-- **Multiple Models**: Support for various detection and recognition algorithms
-- **Database Management**: SQLite-based storage with comprehensive face data
-- **Web Interface**: User-friendly web interface for easy management
+---
 
-### Supported Technologies
+## Core Capabilities and Architecture
 
-#### Face Detection Models
-- **MTCNN**: Multi-task CNN for accurate face detection and alignment
-- **RetinaFace**: Single-shot multi-level face localization
-- **OpenCV Haar Cascade**: Fast and reliable face detection
-- **Dlib**: HOG-based face detector
+The system has been refactored into a modular Python package structure conforming to industry-standard software engineering practices:
 
-#### Face Recognition Models
-- **ArcFace**: Additive Angular Margin Loss for deep face recognition
-- **FaceNet**: Google's face recognition system
-- **VGG-Face**: Oxford VGG's face recognition model
+```
+FaceID_Recognition/
+├── data/                         # SQLite database, registered face embeddings, and cache
+├── docs/                         # Detailed installation and changelog documentation
+├── notebooks/                    # Jupyter research and evaluation notebooks
+├── src/                          # Main source package
+│   ├── core/                     # Central configuration management and custom exceptions
+│   ├── database/                 # SQLite integration utilizing efficient NumPy array storage
+│   ├── detection/                # Abstracted face detection engines (RetinaFace, MTCNN, OpenCV, Dlib)
+│   ├── evaluation/               # Biometric performance metrics (FAR, FRR, EER, ROC/AUC)
+│   ├── learning/                 # Continuous learning manager for online database adaptation
+│   ├── liveness/                 # MobileNetV2 CNN and LBP-based face anti-spoofing (spoof detection)
+│   ├── processing/               # Advanced preprocessing (CLAHE, LAB illumination correction, Augmentation)
+│   ├── quality/                  # CNN-based Face Image Quality Assessment (FIQA)
+│   ├── recognition/              # Feature extraction models (ArcFace, FaceNet, VGG-Face) and identity managers
+│   └── web/                      # Flask-based web server and backend APIs
+├── static/                       # Neumorphic CSS sheets, custom JS modules, and assets
+├── templates/                    # Neumorphic user interface HTML templates
+├── main.py                       # Main console entrypoint and systems integration
+└── requirements.txt              # Dependency definitions
+```
 
-#### Additional Features
-- **Real-time Camera Integration**: Live face recognition from webcam
-- **Web Interface**: Flask-based web application
-- **Continuous Learning**: Automatic model updates from new data
-- **Database Analytics**: Comprehensive statistics and reporting
-- **Export/Import**: Data backup and migration capabilities
+---
 
-## 🚀 Quick Start
+## Feature Details
+
+### 1. Neumorphic Web Interface
+The web interface has been entirely redesigned from the ground up using custom vanilla CSS to implement a tactile Neumorphic (Soft UI) design system:
+- **Depth Physics**: Extruded cards, inset fields, and active-state button presses using dual-shadow offset configurations.
+- **Modern Typography**: Reconfigured with Plus Jakarta Sans for titles and DM Sans for clean readability.
+- **Enhanced UX**: Includes live camera video streaming overlayed with animated laser scanlines and interactive drag-and-drop image upload zones.
+
+### 2. Deep Learning Recognizers
+- **ArcFace (InsightFace)**: Employs additive angular margin loss backbones (Buffalo_L) running on ONNX Runtime for high-speed, state-of-the-art embedding generation.
+- **DeepFace Wrappers**: Integrates FaceNet and VGG-Face configurations.
+- **Robust Cropping Handlers**: Automatically manages full-frame and pre-cropped face inputs to avoid double-cropping errors during feature extraction.
+
+### 3. Metric and Transfer Learning Frameworks
+- **From-Scratch Metric Losses**: Native PyTorch implementations of Additive Angular Margin Loss (ArcFace Loss) and Triplet Margin Loss with online hard-negative/semi-hard mining logic (`src/training/metric_learning.py`).
+- **Fine-Tuning Pipeline**: A multi-stage training framework (`src/training/fine_tuner.py`) that performs initial feature extraction head training on frozen backbones before unfreezing layers for end-to-end backpropagation.
+
+### 4. Biometric Protection Systems
+- **Liveness Detection**: A custom MobileNetV2 CNN classifier (`src/liveness/liveness_detector.py`) trained to identify presentation attacks (such as printed photos or digital screen replays), combined with texture analysis using Local Binary Patterns (LBP).
+- **Face Image Quality Assessment (FIQA)**: A regression network (`src/quality/quality_assessor.py`) scoring faces on resolution, sharpness (Laplacian variance), contrast, and structure to filter out low-quality inputs before registration.
+
+### 5. Efficient SQLite Database using NumPy
+- Replaced vulnerable pickle serialization with direct binary serialization of NumPy arrays into the SQLite database.
+- Tracks granular audit logs, biometric confidence levels, timestamps, face bounding boxes, and facial landmark coordinates.
+
+---
+
+## Quick Start
 
 ### Installation
 
-1. **Clone the repository**
+1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd FaceID/FID
+   git clone https://github.com/Pasidu-Mihiranga/FaceID_Recognition.git
+   cd FaceID_Recognition
    ```
 
-2. **Install dependencies**
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Run the system**
-   ```bash
-   # Start with web interface
-   python face_id_system.py --web
-   
-   # Start camera recognition
-   python face_id_system.py --camera
-   
-   # Interactive mode
-   python face_id_system.py
+3. Setup environment variables:
+   Create a `.env` file in the root directory based on the `.env.example` file:
+   ```env
+   DETECTOR_TYPE=retinaface
+   RECOGNITION_MODEL=arcface
+   RECOGNITION_THRESHOLD=0.15
+   LEARNING_THRESHOLD=0.7
+   PORT=5000
+   HOST=0.0.0.0
    ```
 
-### Web Interface
+### Running the Web Application
 
-Access the web interface at `http://localhost:5000` to:
-- Register new persons
-- Recognize faces from uploaded images
-- View system statistics and analytics
-- Manage registered persons
-- Monitor continuous learning progress
+To launch the web interface locally, run the script:
+```bash
+scripts/start_web.bat
+```
+Alternatively, execute the main entrypoint:
+```bash
+python main.py --web
+```
+Open `http://localhost:5000` in your web browser.
 
-## 📖 Usage Examples
+---
 
-### Basic Usage
+## Scientific Evaluation and Research Notebooks
+
+The `notebooks/` directory contains complete validation workflows that analyze the system's performance:
+
+1. **`01_model_comparison.ipynb`**: Ablation and latency comparison between ArcFace, FaceNet, and traditional recognition baselines.
+2. **`02_threshold_analysis.ipynb`**: Evaluates Equal Error Rate (EER) by plotting False Accept Rate (FAR) vs. False Reject Rate (FRR) curves across different threshold scales.
+3. **`03_augmentation_impact.ipynb`**: Analyzes the impact of data augmentation (rotations, brightness shifts, translations) on model accuracy.
+4. **`04_liveness_detection.ipynb`**: Logs the training process and confusion matrix evaluations for the liveness classification network.
+5. **`05_performance_benchmarks.ipynb`**: CPU vs. GPU profiling covering face detection, alignment, embedding extraction, and database lookup speeds.
+
+---
+
+## API Documentation
+
+### Initializing the Face ID System
 
 ```python
 from main import FaceIDSystem
+import cv2
 
-# Initialize the system
-face_id = FaceIDSystem(
-    detector_type='opencv',      # Face detector
-    recognition_model='arcface', # Recognition model
-    recognition_threshold=0.6    # Recognition threshold
+# Initialize FaceIDSystem
+system = FaceIDSystem(
+    detector_type='retinaface',
+    recognition_model='arcface',
+    recognition_threshold=0.15
 )
 
-# Register a person
-face_id.register_person('path/to/image.jpg', 'John Doe')
+# Register a new subject
+success = system.register_person("path/to/image.jpg", "Thanoj")
 
 # Recognize a face
-import cv2
-image = cv2.imread('path/to/test_image.jpg')
-person_name, confidence, face_info = face_id.recognize_face(image)
+image = cv2.imread("path/to/test.jpg")
+name, confidence, face_info = system.recognize_person(image)
 
-print(f"Recognized: {person_name} (confidence: {confidence:.3f})")
+if name:
+    print(f"Recognized: {name} (Confidence: {confidence:.2f})")
+else:
+    print("Unknown face detected")
 ```
 
-### Camera Recognition
+### Key API Endpoints
 
-```python
-# Start real-time camera recognition
-face_id.start_camera_recognition()
+- `POST /api/register` - Registers a person from an uploaded image.
+- `POST /api/video_register` - Registers a person using a continuous video stream.
+- `POST /api/recognize` - Identifies individuals from uploaded frames.
+- `GET /api/stats` - Retreives system health metrics, total detections, database status, and CPU usage.
+- `GET /api/persons` - Returns a JSON array of all registered individuals.
+- `DELETE /api/person/<id>` - Deletes a registered profile and associated database records.
 
-# The system will automatically:
-# - Detect faces in the camera feed
-# - Recognize known persons
-# - Learn from new encounters
-# - Display results in real-time
-```
+---
 
-### Continuous Learning
-
-```python
-# The system automatically learns from high-confidence recognitions
-# You can also manually trigger learning updates:
-
-# Process a recognition result for learning
-face_id.learning_manager.process_recognition_result(
-    face_image, person_name, confidence
-)
-
-# Get learning statistics
-stats = face_id.learning_manager.get_learning_stats()
-print(f"Learning updates: {stats['total_updates']}")
-```
-
-## 🏗️ System Architecture
-
-```
-Face ID System/
-├── src/
-│   ├── face_detection/     # Face detection modules
-│   ├── face_recognition/   # Face recognition modules
-│   ├── database/          # Database management
-│   ├── continuous_learning/ # Learning algorithms
-│   └── web_interface/     # Web application
-├── data/
-│   ├── registered_faces/   # Stored face images
-│   ├── embeddings/        # Face embeddings
-│   └── face_database.db   # SQLite database
-├── models/                # Pre-trained models
-├── main.py               # Main system integration
-├── face_id_system.py     # Command-line interface
-└── examples.py           # Usage examples
-```
-
-## 🔧 Configuration
-
-### Command Line Options
-
-```bash
-python face_id_system.py [OPTIONS]
-
-Options:
-  --detector {mtcnn,retinaface,opencv,dlib}
-                        Face detector type (default: opencv)
-  --model {arcface,facenet,vggface}
-                        Face recognition model (default: arcface)
-  --threshold FLOAT     Recognition threshold (default: 0.6)
-  --web                 Start web interface
-  --camera              Start camera recognition
-  --register TEXT       Register person: 'image_path,name'
-  --port INTEGER        Web interface port (default: 5000)
-  --host TEXT           Web interface host (default: 0.0.0.0)
-```
-
-### System Parameters
-
-- **Recognition Threshold**: Controls how strict the recognition is (0.0-1.0)
-- **Learning Threshold**: Minimum confidence for continuous learning
-- **Max Embeddings**: Maximum embeddings stored per person
-- **Camera Settings**: Resolution, FPS, and detection intervals
-
-## 📊 Performance Metrics
-
-### Model Performance
-
-| Model | Accuracy | Speed | Memory Usage |
-|-------|----------|-------|--------------|
-| ArcFace | 96.7% | Medium | High |
-| FaceNet | 97.4% | Fast | Medium |
-| VGG-Face | 96.7% | Slow | High |
-
-### Detection Performance
-
-| Detector | Accuracy | Speed | Robustness |
-|----------|----------|-------|------------|
-| MTCNN | High | Slow | High |
-| RetinaFace | Very High | Medium | Very High |
-| OpenCV | Medium | Very Fast | Medium |
-| Dlib | High | Fast | Medium |
-
-## 🔒 Privacy and Security
-
-- **Local Processing**: All face recognition happens locally
-- **Data Encryption**: Face embeddings are stored securely
-- **No Cloud Dependencies**: Complete offline operation
-- **User Control**: Full control over data storage and deletion
-
-## 🛠️ Development
-
-### Running Tests
-
-```bash
-# Run example scripts
-python examples.py
-
-# Test individual components
-python -m src.face_detection
-python -m src.face_recognition
-python -m src.database
-```
-
-### Adding New Models
-
-1. Create a new recognizer class in `src/face_recognition/`
-2. Implement the `FaceRecognizer` interface
-3. Add the model to the factory function
-4. Update the command-line options
-
-### Customizing the Web Interface
-
-- Templates: `src/web_interface/templates/`
-- Static files: `src/web_interface/static/`
-- Routes: `src/web_interface/__init__.py`
-
-## 📚 API Reference
-
-### FaceIDSystem Class
-
-```python
-class FaceIDSystem:
-    def __init__(self, detector_type='mtcnn', recognition_model='arcface', 
-                 recognition_threshold=0.6, learning_threshold=0.7)
-    
-    def register_person(self, image_path, person_name, metadata=None)
-    def recognize_face(self, image)
-    def start_camera_recognition(self, camera_index=0, display_window=True)
-    def stop_camera_recognition(self)
-    def get_system_stats(self)
-    def export_system_data(self, export_path)
-    def cleanup_system(self)
-```
-
-### Web API Endpoints
-
-- `POST /api/register` - Register a new person
-- `POST /api/recognize` - Recognize a face from uploaded image
-- `POST /api/recognize_base64` - Recognize from base64 image data
-- `GET /api/stats` - Get system statistics
-- `GET /api/persons` - Get all registered persons
-- `DELETE /api/person/<id>` - Delete a person
-- `POST /api/camera/start` - Start camera recognition
-- `POST /api/camera/stop` - Stop camera recognition
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **FaceNet**: Google's face recognition system
-- **ArcFace**: DeepInsight's face recognition framework
-- **MTCNN**: Multi-task CNN for face detection
-- **RetinaFace**: Single-shot face detection
-- **DeepFace**: Lightweight face recognition framework
-
-## 📞 Support
-
-For questions, issues, or contributions:
-- Create an issue on GitHub
-- Check the documentation
-- Review the example scripts
-
-## 🔮 Future Enhancements
-
-- [ ] Mobile app integration
-- [ ] Cloud deployment options
-- [ ] Advanced analytics dashboard
-- [ ] Multi-camera support
-- [ ] Face anti-spoofing
-- [ ] Age and gender estimation
-- [ ] Emotion recognition
-- [ ] Batch processing capabilities
