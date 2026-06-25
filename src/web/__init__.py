@@ -139,7 +139,7 @@ class FaceIDWebInterface:
                     # Provide more specific error message
                     return jsonify({
                         'error': 'Registration failed. Please ensure the image contains a clear face and try again.'
-                    }), 500
+                    }), 400
                 
             except Exception as e:
                 logger.error(f"Registration API error: {e}")
@@ -200,7 +200,7 @@ class FaceIDWebInterface:
                 else:
                     return jsonify({
                         'error': 'Video registration failed. Please ensure the video contains clear faces and try again.'
-                    }), 500
+                    }), 400
                 
             except Exception as e:
                 logger.error(f"Video registration API error: {e}")
