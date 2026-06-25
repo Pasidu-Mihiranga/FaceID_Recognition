@@ -89,19 +89,11 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Prepare SSH Key
-      env:
-        RAW_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY }}
-      run: |
-        echo "SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-        echo "$RAW_KEY" >> $GITHUB_ENV
-        echo "" >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
 
     - name: Copy Files to VPS via Rsync
       uses: easingthemes/ssh-deploy@main
       env:
-        SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         ARGS: "-rlgoDzc --delete"
         SOURCE: "."
         TARGET: "/var/www/faceid"
@@ -114,7 +106,7 @@ jobs:
       with:
         host: "168.144.32.178"
         username: "root"
-        key: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           systemctl restart faceid
           systemctl status faceid --no-pager
