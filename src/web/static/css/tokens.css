@@ -1,0 +1,38 @@
+:root {
+  /* Surface */
+  --bg: #E0E5EC;
+  --fg: #3D4852;
+  --muted: #6B7280;
+  --accent: #6C63FF;
+  --accent-light: #8B84FF;
+  --accent-secondary: #38B2AC;
+  --danger: #FF6B6B;
+  --success: #38B2AC;
+  --warning: #F59E0B;
+
+  /* Shadows */
+  --shadow-light: rgba(255, 255, 255, 0.5);
+  --shadow-dark: rgba(163, 177, 198, 0.6);
+  --shadow-light-strong: rgba(255, 255, 255, 0.6);
+  --shadow-dark-strong: rgba(163, 177, 198, 0.7);
+
+  /* Extruded */
+  --shadow-extruded: 9px 9px 16px var(--shadow-dark), -9px -9px 16px var(--shadow-light);
+  --shadow-extruded-hover: 12px 12px 20px var(--shadow-dark-strong), -12px -12px 20px var(--shadow-light-strong);
+  --shadow-extruded-sm: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+
+  /* Inset */
+  --shadow-inset: inset 6px 6px 10px var(--shadow-dark), inset -6px -6px 10px var(--shadow-light);
+  --shadow-inset-deep: inset 10px 10px 20px var(--shadow-dark-strong), inset -10px -10px 20px var(--shadow-light-strong);
+  --shadow-inset-sm: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+
+  /* Radii */
+  --radius-container: 32px;
+  --radius-button: 16px;
+  --radius-inner: 12px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-base: 300ms ease-out;
+  --transition-slow: 500ms ease-out;
+}

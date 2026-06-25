@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}FaceID - Home{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4 animate-slide-up">
+    <div class="neo-icon-well mb-2">
+        <i class="fa-solid fa-face-scan fa-2x"></i>
+    </div>
+    <h1 class="hero-gradient-text">Next-Gen Face Recognition</h1>
+    <p class="text-muted mt-2">Advanced Neumorphic Interface for Identity Verification</p>
+</div>
+
+<div class="grid grid-3 animate-slide-up delay-100">
+    <div class="neo-card neo-card-hover text-center">
+        <div class="neo-icon-well">
+            <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <h3>Register</h3>
+        <p class="text-muted mt-2 mb-2">Add new identities to the system using high-quality photos or live video streams.</p>
+        <a href="{{ url_for('register_page') }}" class="btn btn-primary w-full mt-2">Get Started</a>
+    </div>
+
+    <div class="neo-card neo-card-hover text-center">
+        <div class="neo-icon-well">
+            <i class="fa-solid fa-camera"></i>
+        </div>
+        <h3>Recognize</h3>
+        <p class="text-muted mt-2 mb-2">Verify identities in real-time with high precision multi-face recognition.</p>
+        <a href="{{ url_for('recognize_page') }}" class="btn btn-primary w-full mt-2">Try Now</a>
+    </div>
+
+    <div class="neo-card neo-card-hover text-center">
+        <div class="neo-icon-well">
+            <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <h3>Analytics</h3>
+        <p class="text-muted mt-2 mb-2">View system statistics, registered persons, and performance metrics.</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary w-full mt-2">View Dashboard</a>
+    </div>
+</div>
+{% endblock %}

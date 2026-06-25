@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}FaceID - Recognize{% endblock %}
+
+{% block content %}
+<div class="mb-4 text-center animate-slide-up">
+    <h2>Face Recognition</h2>
+    <p class="text-muted">Upload an image to identify persons</p>
+</div>
+
+<div class="split-layout animate-slide-up delay-100">
+    <div class="neo-card">
+        <form id="recognizeForm">
+            <div class="mb-2">
+                <div class="neo-well-deep text-center p-4" id="dropZone" style="cursor: pointer;">
+                    <i class="fa-solid fa-face-viewfinder fa-2x text-accent mb-2"></i>
+                    <p>Click or drag image here</p>
+                    <input type="file" id="fileInput" name="file" accept="image/*" class="hidden">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full mt-2" id="submitBtn" disabled>Identify Face</button>
+        </form>
+    </div>
+    
+    <div class="neo-card text-center" id="resultCard">
+        <div class="neo-icon-well mb-2" id="resultIcon">
+            <i class="fa-solid fa-question text-muted"></i>
+        </div>
+        <h3 id="resultName">Waiting for image...</h3>
+        <p class="text-muted mt-2" id="resultConfidence"></p>
+        
+        <div class="neo-well mt-4 hidden" id="previewContainer">
+            <img id="imagePreview" style="max-width:100%; border-radius: var(--radius-inner);">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const form = document.getElementById('recognizeForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    const resultName = document.getElementById('resultName');
+    const resultConfidence = document.getElementById('resultConfidence');
+    const resultIcon = document.getElementById('resultIcon');
+    const imagePreview = document.getElementById('imagePreview');
+    const previewContainer = document.getElementById('previewContainer');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', function(e) {
+        if(e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+            }
+            reader.readAsDataURL(file);
+            dropZone.innerHTML = `<i class="fa-solid fa-image text-accent fa-2x mb-2"></i><p>${file.name}</p>`;
+            submitBtn.disabled = false;
+        }
+    });
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const file = fileInput.files[0];
+        if(!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+        submitBtn.disabled = true;
+        resultName.innerHTML = "Analyzing...";
+        resultIcon.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-accent"></i>';
+        
+        try {
+            const res = await fetch('/api/recognize', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if(res.ok) {
+                if(data.person_name) {
+                    resultName.innerHTML = data.person_name;
+                    resultName.style.color = 'var(--success)';
+                    resultConfidence.innerHTML = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                    resultIcon.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
+                } else {
+                    resultName.innerHTML = "Unknown Person";
+                    resultName.style.color = 'var(--danger)';
+                    resultConfidence.innerHTML = "No match found in database.";
+                    resultIcon.innerHTML = '<i class="fa-solid fa-user-secret text-danger"></i>';
+                }
+            } else {
+                resultName.innerHTML = "Error";
+                resultConfidence.innerHTML = data.error;
+                resultIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-danger"></i>';
+            }
+        } catch(err) {
+            resultName.innerHTML = "Network Error";
+            resultIcon.innerHTML = '<i class="fa-solid fa-wifi text-danger"></i>';
+        } finally {
+            submitBtn.innerHTML = 'Identify Face';
+            submitBtn.disabled = false;
+        }
+    });
+</script>
+{% endblock %}

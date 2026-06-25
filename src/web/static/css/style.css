@@ -1,0 +1,30 @@
+/* 
+FaceID Neumorphism Design System 
+Importing all CSS modules
+*/
+@import url('tokens.css');
+@import url('base.css');
+@import url('components.css');
+@import url('layout.css');
+@import url('animations.css');
+
+/* Page specific overrides if needed */
+.hero-gradient-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-inner);
+  overflow: hidden;
+  background: #000;
+}
+
+#videoFeed, #imagePreview {
+  width: 100%;
+  display: block;
+}

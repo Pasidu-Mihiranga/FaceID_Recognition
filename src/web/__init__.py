@@ -13,6 +13,7 @@ import base64
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import logging
+import secrets
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +39,7 @@ class FaceIDWebInterface:
         self.app = Flask(__name__, 
                         template_folder='templates',
                         static_folder='static')
-        self.app.secret_key = 'face_id_secret_key_2024'
+        self.app.secret_key = os.environ.get('FACEID_SECRET_KEY', secrets.token_hex(32))
         
         # Enable CORS
         CORS(self.app)

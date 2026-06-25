@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}FaceID - Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-4 animate-slide-up">
+    <h2>System Analytics</h2>
+    <p class="text-muted">Overview of the FaceID infrastructure</p>
+</div>
+
+<div class="grid grid-4 mb-4 animate-slide-up delay-100">
+    <div class="neo-card text-center">
+        <h1 class="text-accent">{{ stats.database_stats.total_persons | default('0') }}</h1>
+        <p class="text-muted font-bold">Registered Persons</p>
+    </div>
+    <div class="neo-card text-center">
+        <h1 class="text-accent">{{ stats.database_stats.total_images | default('0') }}</h1>
+        <p class="text-muted font-bold">Total Faces Stored</p>
+    </div>
+    <div class="neo-card text-center">
+        <h1 class="text-accent">{{ stats.database_stats.total_recognitions | default('0') }}</h1>
+        <p class="text-muted font-bold">Recognitions Logged</p>
+    </div>
+    <div class="neo-card text-center">
+        <h1 class="text-accent">{{ stats.performance_stats.average_inference_time_ms | default('0') | round(1) }}</h1>
+        <p class="text-muted font-bold">Avg Latency (ms)</p>
+    </div>
+</div>
+
+<div class="neo-card animate-slide-up delay-200">
+    <h3 class="mb-2">System Config</h3>
+    <div class="neo-well">
+        <p><strong>Database Path:</strong> {{ stats.system_config.database_path | default('N/A') }}</p>
+        <p><strong>Recognition Threshold:</strong> {{ stats.system_config.recognition_threshold | default('N/A') }}</p>
+        <p><strong>System Uptime:</strong> {{ stats.system_config.uptime | default('N/A') }}</p>
+    </div>
+</div>
+{% endblock %}

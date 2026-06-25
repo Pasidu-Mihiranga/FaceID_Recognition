@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}FaceID - Video Register{% endblock %}
+
+{% block content %}
+<div class="mb-4 text-center animate-slide-up">
+    <h2>Video Registration</h2>
+    <p class="text-muted">Register identity using live camera stream for higher accuracy</p>
+</div>
+
+<div class="split-layout animate-slide-up delay-100">
+    <div class="neo-card">
+        <div class="mb-2">
+            <label for="personName" class="text-muted mb-1" style="display:block;">Person Name</label>
+            <input type="text" id="personName" class="neo-input" placeholder="e.g. John Doe">
+        </div>
+        
+        <div class="mt-4 mb-4">
+            <p class="text-muted mb-2">Follow instructions on screen and turn your head slowly.</p>
+            <div class="grid grid-2">
+                <button id="startBtn" class="btn btn-primary"><i class="fa-solid fa-video"></i> &nbsp;Start Recording</button>
+                <button id="stopBtn" class="btn btn-danger" disabled><i class="fa-solid fa-stop"></i> &nbsp;Stop</button>
+            </div>
+        </div>
+        
+        <div id="statusAlert" class="neo-well hidden"></div>
+        
+        <!-- Video form for backend processing if needed -->
+        <form id="videoForm" class="hidden">
+            <input type="file" id="videoFileInput" name="video">
+        </form>
+    </div>
+    
+    <div class="neo-well-deep" style="position: relative; overflow: hidden; min-height: 350px;">
+        <video id="cameraFeed" autoplay playsinline muted style="width: 100%; border-radius: var(--radius-inner);"></video>
+        <div id="scanOverlay" class="scan-line hidden"></div>
+        <div id="instructions" class="neo-badge hidden" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(224, 229, 236, 0.9);">
+            Look straight at the camera
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Simplified UI logic for demonstration
+    // Real implementation would use WebRTC to capture chunks and send to /api/video_register
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const cameraFeed = document.getElementById('cameraFeed');
+    const scanOverlay = document.getElementById('scanOverlay');
+    const statusAlert = document.getElementById('statusAlert');
+    const instructions = document.getElementById('instructions');
+    let stream = null;
+
+    startBtn.addEventListener('click', async () => {
+        const name = document.getElementById('personName').value;
+        if(!name) {
+            statusAlert.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Please enter a name first.';
+            statusAlert.classList.remove('hidden');
+            statusAlert.style.color = 'var(--warning)';
+            return;
+        }
+        
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            cameraFeed.srcObject = stream;
+            
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            scanOverlay.classList.remove('hidden');
+            instructions.classList.remove('hidden');
+            
+            statusAlert.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Recording in progress...';
+            statusAlert.classList.remove('hidden');
+            statusAlert.style.color = 'var(--accent)';
+            
+            // In a real app, MediaRecorder would be used here to collect chunks
+        } catch(err) {
+            statusAlert.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Camera access denied: ${err.message}`;
+            statusAlert.classList.remove('hidden');
+            statusAlert.style.color = 'var(--danger)';
+        }
+    });
+
+    stopBtn.addEventListener('click', () => {
+        if(stream) {
+            stream.getTracks().forEach(track => track.stop());
+            cameraFeed.srcObject = null;
+        }
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        scanOverlay.classList.add('hidden');
+        instructions.classList.add('hidden');
+        
+        statusAlert.innerHTML = '<i class="fa-solid fa-check-circle"></i> Registration data captured and processing.';
+        statusAlert.style.color = 'var(--success)';
+        
+        // In a real app, this is where the compiled video blob is posted to the backend
+    });
+</script>
+{% endblock %}

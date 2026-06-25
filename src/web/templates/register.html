@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block title %}FaceID - Register{% endblock %}
+
+{% block content %}
+<div class="mb-4 text-center animate-slide-up">
+    <h2>Register Identity</h2>
+    <p class="text-muted">Upload a photo to register a new person</p>
+</div>
+
+<div class="split-layout animate-slide-up delay-100">
+    <div class="neo-card">
+        <form id="registerForm">
+            <div class="mb-2">
+                <label for="personName" class="text-muted mb-1" style="display:block;">Person Name</label>
+                <input type="text" id="personName" name="personName" class="neo-input" placeholder="e.g. John Doe" required>
+            </div>
+            
+            <div class="mb-2 mt-4">
+                <label class="text-muted mb-1" style="display:block;">Upload Photo</label>
+                <div class="neo-well-deep text-center p-4" id="dropZone" style="cursor: pointer;">
+                    <i class="fa-solid fa-cloud-arrow-up fa-2x text-accent mb-2"></i>
+                    <p>Click or drag image here</p>
+                    <input type="file" id="fileInput" name="file" accept="image/*" class="hidden">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-full mt-2" id="submitBtn">Register Person</button>
+        </form>
+        <div id="alertMessage" class="neo-well mt-4 hidden"></div>
+    </div>
+    
+    <div class="neo-well-deep text-center flex-center" style="display:flex; align-items:center; justify-content:center; min-height: 300px;">
+        <img id="imagePreview" class="hidden" style="max-width:100%; border-radius: var(--radius-inner);">
+        <p id="previewText" class="text-muted"><i class="fa-regular fa-image fa-2x"></i><br>Image preview</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const imagePreview = document.getElementById('imagePreview');
+    const previewText = document.getElementById('previewText');
+    const form = document.getElementById('registerForm');
+    const alertBox = document.getElementById('alertMessage');
+    const submitBtn = document.getElementById('submitBtn');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', function(e) {
+        if(e.target.files.length > 0) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                imagePreview.classList.remove('hidden');
+                previewText.classList.add('hidden');
+            }
+            reader.readAsDataURL(file);
+            dropZone.innerHTML = `<i class="fa-solid fa-check text-success fa-2x mb-2"></i><p>${file.name}</p>`;
+        }
+    });
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('personName').value;
+        const file = fileInput.files[0];
+        
+        if(!name || !file) {
+            showAlert('Please provide both name and image.', 'error');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('person_name', name);
+        formData.append('file', file);
+        
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+        submitBtn.disabled = true;
+        
+        try {
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if(res.ok) {
+                showAlert(`<i class="fa-solid fa-check-circle"></i> ${data.message}`, 'success');
+                form.reset();
+                imagePreview.classList.add('hidden');
+                previewText.classList.remove('hidden');
+                dropZone.innerHTML = `<i class="fa-solid fa-cloud-arrow-up fa-2x text-accent mb-2"></i><p>Click or drag image here</p>`;
+            } else {
+                showAlert(`<i class="fa-solid fa-circle-xmark"></i> ${data.error}`, 'error');
+            }
+        } catch(err) {
+            showAlert('Network error occurred.', 'error');
+        } finally {
+            submitBtn.innerHTML = 'Register Person';
+            submitBtn.disabled = false;
+        }
+    });
+    
+    function showAlert(msg, type) {
+        alertBox.innerHTML = msg;
+        alertBox.classList.remove('hidden');
+        if(type === 'success') {
+            alertBox.style.color = 'var(--success)';
+            alertBox.style.borderLeft = '4px solid var(--success)';
+        } else {
+            alertBox.style.color = 'var(--danger)';
+            alertBox.style.borderLeft = '4px solid var(--danger)';
+        }
+    }
+</script>
+{% endblock %}
