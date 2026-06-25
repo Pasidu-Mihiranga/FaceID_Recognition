@@ -943,13 +943,14 @@ def main():
     
     try:
         # Extract environment variables with fallbacks
+        detector_type = os.getenv("FACE_DETECTOR", "retinaface")
         recognition_threshold = float(os.getenv("RECOGNITION_THRESHOLD", "0.7"))
         learning_threshold = float(os.getenv("LEARNING_THRESHOLD", "0.85"))
         web_port = int(os.getenv("FLASK_PORT", str(args.port)))
         
         # Initialize system
         face_id = FaceIDSystem(
-            detector_type='opencv',  # Use OpenCV for better compatibility
+            detector_type=detector_type,
             recognition_model='arcface',
             recognition_threshold=recognition_threshold,
             learning_threshold=learning_threshold
