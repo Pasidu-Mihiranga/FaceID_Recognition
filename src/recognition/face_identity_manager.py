@@ -40,6 +40,19 @@ class FaceIdentityManager:
         # Load existing identities
         self.identities = self._load_identities()
         
+        # Initialize FAISS index variables
+        self.faiss_available = False
+        self.index = None
+        self.identity_names = []
+        try:
+            import faiss
+            self.faiss_available = True
+            logger.info("FAISS vector indexing is available and will be used for fast search.")
+        except ImportError:
+            logger.info("FAISS not found. Falling back to NumPy for similarity search.")
+            
+        self._rebuild_faiss_index()
+        
         logger.info(f"Face Identity Manager initialized with {len(self.identities)} identities")
     
     def create_identity(self, person_name: str, face_images: List[np.ndarray], 
@@ -61,10 +74,10 @@ class FaceIdentityManager:
             if len(face_images) < self.min_images_for_identity:
                 raise ValueError(f"Need at least {self.min_images_for_identity} images to create identity")
             
-            # Limit number of images
+            # Limit number of images (keep the most recent ones)
             if len(face_images) > self.max_images_for_identity:
-                face_images = face_images[:self.max_images_for_identity]
-                face_embeddings = face_embeddings[:self.max_images_for_identity]
+                face_images = face_images[-self.max_images_for_identity:]
+                face_embeddings = face_embeddings[-self.max_images_for_identity:]
             
             # Preprocess images for lighting normalization
             if self.lighting_normalization:
@@ -141,16 +154,34 @@ class FaceIdentityManager:
                     return None, 0.0, {'person_not_found': True}
             else:
                 # Match against all identities
-                for name, identity in self.identities.items():
-                    confidence = self._calculate_similarity(normalized_embedding, identity['master_embedding'])
+                if self.faiss_available and self.index is not None and len(self.identity_names) > 0:
+                    # Perform fast FAISS query
+                    query_vector = normalized_embedding.reshape(1, -1).astype(np.float32)
+                    similarities, indices = self.index.search(query_vector, 1)
                     
-                    if confidence > best_confidence:
-                        best_confidence = confidence
-                        best_match = name
+                    best_idx = indices[0][0]
+                    if best_idx != -1 and best_idx < len(self.identity_names):
+                        best_match = self.identity_names[best_idx]
+                        best_confidence = max(0.0, min(1.0, float(similarities[0][0])))
+                        identity = self.identities[best_match]
                         match_info = {
                             'identity_quality': identity['identity_quality'],
-                            'image_count': identity['image_count']
+                            'image_count': identity['image_count'],
+                            'faiss_match': True
                         }
+                else:
+                    # NumPy search fallback
+                    for name, identity in self.identities.items():
+                        confidence = self._calculate_similarity(normalized_embedding, identity['master_embedding'])
+                        
+                        if confidence > best_confidence:
+                            best_confidence = confidence
+                            best_match = name
+                            match_info = {
+                                'identity_quality': identity['identity_quality'],
+                                'image_count': identity['image_count'],
+                                'faiss_match': False
+                            }
                 
                 if best_confidence >= self.identity_threshold:
                     return best_match, best_confidence, match_info
@@ -185,11 +216,10 @@ class FaceIdentityManager:
             all_images = existing_identity['face_images'] + new_face_images
             all_embeddings = existing_identity['original_embeddings'] + new_embeddings
             
-            # Limit total images
+            # Limit total images (keep the most recent ones)
             if len(all_images) > self.max_images_for_identity:
-                # Keep the best quality images
-                all_images = all_images[:self.max_images_for_identity]
-                all_embeddings = all_embeddings[:self.max_images_for_identity]
+                all_images = all_images[-self.max_images_for_identity:]
+                all_embeddings = all_embeddings[-self.max_images_for_identity:]
             
             # Recreate identity with combined data
             updated_identity = self.create_identity(person_name, all_images, all_embeddings)
@@ -238,25 +268,33 @@ class FaceIdentityManager:
             # Fallback to simple average
             return normalize(np.mean(embeddings, axis=0).reshape(1, -1)).flatten()
     
-    def _calculate_embedding_weights(self, embedding_matrix: np.ndarray) -> np.ndarray:
+    def _calculate_embedding_weights(self, embedding_matrix: np.ndarray, decay_factor: float = 0.05) -> np.ndarray:
         """
-        Calculate weights for embeddings based on their quality
+        Calculate weights for embeddings based on their quality and recency (time decay)
         
         Args:
             embedding_matrix: Matrix of face embeddings
+            decay_factor: Exponential decay factor for older embeddings
             
         Returns:
             Array of weights for each embedding
         """
         try:
+            n = len(embedding_matrix)
             # Calculate pairwise similarities
             similarities = np.dot(embedding_matrix, embedding_matrix.T)
             
             # Calculate average similarity for each embedding
             avg_similarities = np.mean(similarities, axis=1)
             
-            # Convert to weights (higher similarity = higher weight)
-            weights = avg_similarities / np.sum(avg_similarities)
+            # Calculate recency weights (exponential time decay from newest/last element)
+            recency_weights = np.exp(-decay_factor * np.arange(n - 1, -1, -1))
+            
+            # Combine quality and recency weights
+            combined_weights = avg_similarities * recency_weights
+            
+            # Convert to weights (normalized to sum to 1)
+            weights = combined_weights / np.sum(combined_weights)
             
             return weights
             
@@ -264,6 +302,45 @@ class FaceIdentityManager:
             logger.error(f"Failed to calculate embedding weights: {e}")
             # Return equal weights
             return np.ones(len(embedding_matrix)) / len(embedding_matrix)
+
+    def _rebuild_faiss_index(self):
+        """Rebuild the FAISS index from stored identities"""
+        if not self.faiss_available or not self.identities:
+            self.index = None
+            self.identity_names = []
+            return
+            
+        try:
+            import faiss
+            # Get dimension from first identity
+            first_name = next(iter(self.identities))
+            dim = len(self.identities[first_name]['master_embedding'])
+            
+            # Using IndexFlatIP for Cosine Similarity (since we normalize embeddings)
+            self.index = faiss.IndexFlatIP(dim)
+            self.identity_names = []
+            
+            embeddings = []
+            for name, identity in self.identities.items():
+                master_emb = np.array(identity['master_embedding'], dtype=np.float32)
+                # Ensure it's normalized
+                norm = np.linalg.norm(master_emb)
+                if norm > 0:
+                    master_emb = master_emb / norm
+                embeddings.append(master_emb)
+                self.identity_names.append(name)
+                
+            if embeddings:
+                embeddings_matrix = np.vstack(embeddings).astype(np.float32)
+                self.index.add(embeddings_matrix)
+                logger.info(f"FAISS index built successfully with {len(embeddings)} identities.")
+            else:
+                self.index = None
+                
+        except Exception as e:
+            logger.error(f"Failed to rebuild FAISS index: {e}")
+            self.index = None
+            self.identity_names = []
     
     def _normalize_lighting(self, face_images: List[np.ndarray]) -> List[np.ndarray]:
         """
@@ -468,6 +545,7 @@ class FaceIdentityManager:
             
             # Update in-memory identities
             self.identities[person_name] = identity
+            self._rebuild_faiss_index()
             
             logger.info(f"Identity saved for {person_name}")
             
@@ -560,8 +638,9 @@ class FaceIdentityManager:
             
             # Remove from memory
             del self.identities[person_name]
+            self._rebuild_faiss_index()
             
-            # Remove files
+            logger.info(f"Identity deleted for {person_name}")
             identity_path = os.path.join(self.identity_storage_path, f"{person_name}_identity.json")
             images_path = os.path.join(self.identity_storage_path, f"{person_name}_images.pkl")
             
