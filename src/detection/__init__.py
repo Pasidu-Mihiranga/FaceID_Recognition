@@ -296,6 +296,87 @@ class OpenCVDetector(FaceDetector):
         
         return filtered_faces
 
+class OpenCVDNNDetector(FaceDetector):
+    """OpenCV DNN face detector using ResNet-10 SSD"""
+    
+    def __init__(self):
+        try:
+            import os
+            import urllib.request
+            
+            # Paths inside workspace
+            model_dir = os.path.join("models", "detection")
+            os.makedirs(model_dir, exist_ok=True)
+            
+            self.prototxt_path = os.path.join(model_dir, "deploy.prototxt")
+            self.model_path = os.path.join(model_dir, "res10_300x300_ssd_iter_140000.caffemodel")
+            
+            # URLs for model files
+            prototxt_url = "https://raw.githubusercontent.com/opencv/opencv/master/samples/dnn/face_detector/deploy.prototxt"
+            model_url = "https://raw.githubusercontent.com/opencv/opencv_3rdparty/dnn_samples_face_detector_20170830/res10_300x300_ssd_iter_140000.caffemodel"
+            
+            # Download prototxt if missing
+            if not os.path.exists(self.prototxt_path):
+                logger.info(f"Downloading OpenCV DNN prototxt from {prototxt_url}...")
+                urllib.request.urlretrieve(prototxt_url, self.prototxt_path)
+                
+            # Download weights if missing
+            if not os.path.exists(self.model_path):
+                logger.info(f"Downloading OpenCV DNN caffe model from {model_url}...")
+                urllib.request.urlretrieve(model_url, self.model_path)
+                
+            # Load net
+            self.net = cv2.dnn.readNetFromCaffe(self.prototxt_path, self.model_path)
+            logger.info("OpenCV DNN ResNet-10 SSD detector initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenCV DNN detector: {e}")
+            raise ImportError(f"OpenCV DNN detector not available: {e}")
+            
+    def detect_faces(self, image: np.ndarray) -> List[Dict[str, Any]]:
+        """Detect faces using ResNet-10 SSD"""
+        try:
+            h, w = image.shape[:2]
+            # Preprocess: mean subtraction, scaling, resizing
+            blob = cv2.dnn.blobFromImage(
+                cv2.resize(image, (300, 300)), 1.0, (300, 300), 
+                (104.0, 177.0, 123.0)
+            )
+            
+            self.net.setInput(blob)
+            detections = self.net.forward()
+            faces = []
+            
+            # loop over the detections
+            for i in range(0, detections.shape[2]):
+                confidence = detections[0, 0, i, 2]
+                
+                # Filter out weak detections
+                if confidence > 0.5:
+                    # Compute coordinates
+                    box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+                    (startX, startY, endX, endY) = box.astype("int")
+                    
+                    # Ensure bbox is within image bounds
+                    startX = max(0, startX)
+                    startY = max(0, startY)
+                    endX = min(w, endX)
+                    endY = min(h, endY)
+                    
+                    bbox_w = endX - startX
+                    bbox_h = endY - startY
+                    
+                    if bbox_w > 0 and bbox_h > 0:
+                        faces.append({
+                            'bbox': (startX, startY, bbox_w, bbox_h),
+                            'landmarks': None,
+                            'confidence': float(confidence)
+                        })
+            return faces
+        except Exception as e:
+            logger.error(f"OpenCV DNN detection failed: {e}")
+            return []
+
 class DlibDetector(FaceDetector):
     """Dlib HOG face detector"""
     
@@ -349,7 +430,8 @@ class FaceDetectionManager:
             'mtcnn': MTCNNDetector,
             'retinaface': RetinaFaceDetector,
             'opencv': OpenCVDetector,
-            'dlib': DlibDetector
+            'dlib': DlibDetector,
+            'opencv_dnn': OpenCVDNNDetector
         }
         
         if detector_type not in detector_map:
@@ -424,7 +506,7 @@ if __name__ == "__main__":
     cv2.putText(test_image, "Test Image", (200, 240), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2)
     
     # Test different detectors
-    detectors = ['opencv', 'mtcnn', 'retinaface', 'dlib']
+    detectors = ['opencv', 'opencv_dnn', 'mtcnn', 'retinaface', 'dlib']
     
     for detector_type in detectors:
         try:
