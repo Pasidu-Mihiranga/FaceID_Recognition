@@ -898,7 +898,7 @@ class FaceIDSystem:
                 },
                 'system_config': {
                     'database_path': self.database.db_path,
-                    'recognition_threshold': self.face_recognizer.recognition_threshold,
+                    'recognition_threshold': getattr(self.face_recognizer, 'recognition_threshold', 0.7),
                     'uptime': "Online"
                 }
             }
@@ -906,10 +906,10 @@ class FaceIDSystem:
         except Exception as e:
             logger.error(f"Failed to get system stats: {e}")
             return {
-                'database_stats': {},
+                'database_stats': {'total_persons': 0, 'total_images': 0, 'total_recognitions': 0},
                 'recognition_stats': self.recognition_stats,
-                'performance_stats': {},
-                'system_config': {}
+                'performance_stats': {'average_inference_time_ms': 0},
+                'system_config': {'database_path': 'Error', 'recognition_threshold': 'Error', 'uptime': 'Error'}
             }
             
     def cleanup_system(self):
