@@ -99,7 +99,7 @@ jobs:
         TARGET: "/var/www/faceid"
         REMOTE_HOST: "168.144.32.178"
         REMOTE_USER: "root"
-        EXCLUDE: "/.git/, /faceid_env/, /__pycache__/, /data/uploads/, /data/embeddings/, /.github/, /Dockerfile, /docker-compose.yml"
+        EXCLUDE: "/.git/, /faceid_env/, /__pycache__/, /data/uploads/, /data/embeddings/, /.github/, /Dockerfile, /docker-compose.yml, /.env, /data/face_database.db, /data/database.sqlite"
 
     - name: Restart FaceID Systemd Daemon
       uses: appleboy/ssh-action@master
