@@ -161,3 +161,6 @@ data/learning_temp_*
 *_DEBUG*.md
 *_TROUBLESHOOTING.md
 *_COMPLETELY_FIXED.md
+
+# Downloaded model directories
+models/

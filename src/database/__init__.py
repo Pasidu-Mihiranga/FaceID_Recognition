@@ -29,8 +29,11 @@ class FaceDatabase:
             db_path: Path to SQLite database file
         """
         self.db_path = db_path
+        import threading
+        self._local = threading.local()
         self.ensure_directories()
         self.init_database()
+        self._run_migrations()
     
     def ensure_directories(self):
         """Ensure required directories exist"""
@@ -42,7 +45,7 @@ class FaceDatabase:
     def init_database(self):
         """Initialize database tables"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 # Create persons table
@@ -105,6 +108,80 @@ class FaceDatabase:
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
             raise
+
+    def _get_conn(self) -> sqlite3.Connection:
+        """Get thread-local SQLite database connection"""
+        if not hasattr(self._local, "conn"):
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.execute("PRAGMA foreign_keys = ON")
+            self._local.conn = conn
+        return self._local.conn
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Alias for _get_conn for backward compatibility"""
+        return self._get_conn()
+
+    def _get_user_version(self) -> int:
+        """Get database schema version"""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA user_version")
+            return cursor.fetchone()[0]
+        except Exception as e:
+            logger.error(f"Failed to get user_version: {e}")
+            return 0
+
+    def _set_user_version(self, version: int):
+        """Set database schema version"""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA user_version = {version}")
+        except Exception as e:
+            logger.error(f"Failed to set user_version: {e}")
+
+    def _run_migrations(self):
+        """Run database migrations sequentially"""
+        try:
+            current_version = self._get_user_version()
+            logger.info(f"Database schema version: {current_version}")
+            
+            # Migration 1: Add liveness columns to recognition_logs
+            if current_version < 1:
+                logger.info("Running migration 1 (adding liveness columns to recognition_logs)...")
+                conn = self._get_conn()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("ALTER TABLE recognition_logs ADD COLUMN liveness_score REAL DEFAULT 1.0")
+                except sqlite3.OperationalError:
+                    pass  # Column might already exist
+                try:
+                    cursor.execute("ALTER TABLE recognition_logs ADD COLUMN is_liveness_fail BOOLEAN DEFAULT FALSE")
+                except sqlite3.OperationalError:
+                    pass
+                conn.commit()
+                self._set_user_version(1)
+                current_version = 1
+                logger.info("Migration 1 applied successfully")
+
+            # Migration 2: Add quality_score to face_images
+            if current_version < 2:
+                logger.info("Running migration 2 (adding quality_score column to face_images)...")
+                conn = self._get_conn()
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("ALTER TABLE face_images ADD COLUMN quality_score REAL DEFAULT 1.0")
+                except sqlite3.OperationalError:
+                    pass
+                conn.commit()
+                self._set_user_version(2)
+                current_version = 2
+                logger.info("Migration 2 applied successfully")
+
+        except Exception as e:
+            logger.error(f"Database migration failed: {e}")
+            raise
     
     def add_person(self, name: str, metadata: Optional[Dict] = None) -> int:
         """
@@ -118,7 +195,7 @@ class FaceDatabase:
             Person ID
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 metadata_json = json.dumps(metadata) if metadata else None
@@ -140,7 +217,7 @@ class FaceDatabase:
     
     def add_face_image(self, person_id: int, image_path: str, embedding: np.ndarray,
                        face_bbox: Optional[Tuple] = None, landmarks: Optional[np.ndarray] = None,
-                       confidence: float = 1.0) -> int:
+                       confidence: float = 1.0, quality_score: float = 1.0) -> int:
         """
         Add a face image to the database
         
@@ -151,6 +228,7 @@ class FaceDatabase:
             face_bbox: Face bounding box coordinates
             landmarks: Facial landmarks
             confidence: Detection confidence
+            quality_score: Face quality assessment score
             
         Returns:
             Face image ID
@@ -167,14 +245,14 @@ class FaceDatabase:
             face_bbox_json = json.dumps([int(x) for x in face_bbox]) if face_bbox else None
             landmarks_json = json.dumps(landmarks.tolist()) if landmarks is not None else None
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
                     INSERT INTO face_images 
-                    (person_id, image_path, thumbnail_path, embedding_path, face_bbox, landmarks, confidence)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (person_id, image_path, thumbnail_path, embedding_path, face_bbox_json, landmarks_json, confidence))
+                    (person_id, image_path, thumbnail_path, embedding_path, face_bbox, landmarks, confidence, quality_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (person_id, image_path, thumbnail_path, embedding_path, face_bbox_json, landmarks_json, confidence, quality_score))
                 
                 face_id = cursor.lastrowid
                 
@@ -218,7 +296,7 @@ class FaceDatabase:
     def get_person_by_name(self, name: str) -> Optional[Dict]:
         """Get person information by name"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('SELECT * FROM persons WHERE name = ?', (name,))
@@ -243,7 +321,7 @@ class FaceDatabase:
     def get_person_by_id(self, person_id: int) -> Optional[Dict]:
         """Get person information by ID"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('SELECT * FROM persons WHERE id = ?', (person_id,))
@@ -268,7 +346,7 @@ class FaceDatabase:
     def get_all_persons(self) -> List[Dict]:
         """Get all persons from the database"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('SELECT * FROM persons ORDER BY name')
@@ -295,7 +373,7 @@ class FaceDatabase:
     def get_person_embeddings(self, person_id: int) -> List[np.ndarray]:
         """Get all embeddings for a person"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('SELECT embedding_path FROM face_images WHERE person_id = ?', (person_id,))
@@ -321,7 +399,7 @@ class FaceDatabase:
     def get_person_images(self, person_id: int) -> List[Dict]:
         """Get all images for a person"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
@@ -352,7 +430,7 @@ class FaceDatabase:
                        confidence: float, is_unknown: bool = False):
         """Log a recognition event"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
@@ -381,7 +459,7 @@ class FaceDatabase:
                 days = 30
             day_modifier = f'-{days} days'
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 # Total recognitions
@@ -432,7 +510,7 @@ class FaceDatabase:
     def delete_person(self, person_id: int) -> bool:
         """Delete a person and all associated data"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 # Get person info
@@ -470,7 +548,7 @@ class FaceDatabase:
     def cleanup_old_logs(self, days: int = 90):
         """Clean up old recognition logs"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_conn() as conn:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
