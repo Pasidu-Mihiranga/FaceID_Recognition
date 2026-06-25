@@ -129,17 +129,17 @@ class FaceIDSystem:
                     logger.warning("No faces detected even with lenient parameters - registration aborted")
                     return False
             
-            # Use the first detected face
+            # Use the first detected face for bounding box/metadata
             face_info = faces[0]
-            face_image = self.face_detector.extract_face(image, face_info)
+            face_image_cropped = self.face_detector.extract_face(image, face_info)
             
-            # Extract embedding
-            embedding = self.face_recognizer.recognizer.extract_embedding(face_image)
+            # Extract embedding (pass the full image to avoid double-cropping detection failures)
+            embedding = self.face_recognizer.recognizer.extract_embedding(image)
             
             # Add person to database
             person_id = self.database.add_person(person_name, metadata)
             
-            # Save face image to database
+            # Save face image to database (use cropped image for storage)
             face_id = self.database.add_face_image(
                 person_id=person_id,
                 image_path=image_path,
@@ -376,15 +376,16 @@ class FaceIDSystem:
             try:
                 # Enhanced preprocessing for phone photos
                 enhanced_face_image = self._enhance_image_for_recognition(processed_face)
-                embedding = self.face_recognizer.recognizer.extract_embedding(enhanced_face_image)
+                # Pass the FULL image to InsightFace to prevent double-cropping detection failures
+                embedding = self.face_recognizer.recognizer.extract_embedding(image)
                 
                 # Normalize features
                 normalized_embedding = self.advanced_processor.normalize_features(embedding)
                 
             except Exception as e:
                 logger.warning(f"Failed to extract embedding: {e}")
-                # Fallback to traditional recognition
-                person_name, confidence = self.face_recognizer.recognize_face(processed_face)
+                # Fallback to traditional recognition (pass full image)
+                person_name, confidence = self.face_recognizer.recognize_face(image)
                 return person_name, confidence, face_info
             
             # Try identity-based recognition first
