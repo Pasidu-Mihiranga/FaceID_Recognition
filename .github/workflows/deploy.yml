@@ -89,10 +89,19 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Prepare SSH Key
+      env:
+        RAW_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY }}
+      run: |
+        echo "SSH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+        echo "$RAW_KEY" >> $GITHUB_ENV
+        echo "" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
     - name: Copy Files to VPS via Rsync
       uses: easingthemes/ssh-deploy@main
       env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || secrets.VPS_SSH_KEY }}
+        SSH_PRIVATE_KEY: ${{ env.SSH_PRIVATE_KEY }}
         ARGS: "-rlgoDzc --delete"
         SOURCE: "."
         TARGET: "/var/www/faceid"
