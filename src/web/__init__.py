@@ -238,11 +238,16 @@ class FaceIDWebInterface:
                     # Convert numpy int32 to Python int for JSON serialization
                     face_bbox = [int(x) for x in bbox] if bbox else None
                 
+                is_live = face_info.get('is_live', True) if face_info else True
+                liveness_score = face_info.get('liveness_score', 1.0) if face_info else 1.0
+                
                 result = {
                     'person_name': person_name,
                     'confidence': float(confidence),
                     'face_detected': face_info is not None,
-                    'face_bbox': face_bbox
+                    'face_bbox': face_bbox,
+                    'is_live': is_live,
+                    'liveness_score': float(liveness_score)
                 }
                 
                 return jsonify(result)
@@ -281,11 +286,16 @@ class FaceIDWebInterface:
                     # Convert numpy int32 to Python int for JSON serialization
                     face_bbox = [int(x) for x in bbox] if bbox else None
                 
+                is_live = face_info.get('is_live', True) if face_info else True
+                liveness_score = face_info.get('liveness_score', 1.0) if face_info else 1.0
+                
                 result = {
                     'person_name': person_name,
                     'confidence': float(confidence),
                     'face_detected': face_info is not None,
-                    'face_bbox': face_bbox
+                    'face_bbox': face_bbox,
+                    'is_live': is_live,
+                    'liveness_score': float(liveness_score)
                 }
                 
                 return jsonify(result)

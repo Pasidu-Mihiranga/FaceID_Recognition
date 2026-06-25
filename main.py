@@ -22,6 +22,8 @@ from src.database import FaceDatabase
 from src.learning import ContinuousLearningManager
 from src.recognition.face_identity_manager import FaceIdentityManager
 from src.processing.advanced_face_processor import AdvancedFaceProcessor
+from src.liveness.liveness_detector import LivenessDetector
+import torch
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -74,6 +76,25 @@ class FaceIDSystem:
             'unknown_faces': 0,
             'last_recognition_time': None
         }
+        
+        # Initialize Liveness Detector if model file exists
+        self.liveness_model = None
+        self.liveness_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        liveness_model_path = os.path.join("models", "liveness", "best_liveness.pth")
+        if os.path.exists(liveness_model_path):
+            try:
+                logger.info(f"Loading liveness detection model from {liveness_model_path}...")
+                self.liveness_model = LivenessDetector(num_classes=2)
+                state_dict = torch.load(liveness_model_path, map_location=self.liveness_device)
+                self.liveness_model.load_state_dict(state_dict)
+                self.liveness_model.to(self.liveness_device)
+                self.liveness_model.eval()
+                logger.info(f"Liveness detection model loaded successfully on {self.liveness_device}")
+            except Exception as e:
+                logger.error(f"Failed to load liveness detection model: {e}")
+                self.liveness_model = None
+        else:
+            logger.warning(f"Liveness detection model weights not found at {liveness_model_path}. Liveness checks will be bypassed.")
         
         logger.info("Face ID System initialized successfully")
     
@@ -351,6 +372,79 @@ class FaceIDSystem:
             logger.error(f"Image sharpening failed: {e}")
             return image
     
+    def check_liveness(self, image: np.ndarray, bbox: Tuple[int, int, int, int]) -> Tuple[bool, float]:
+        """
+        Check if the face in the bounding box is live or spoof (printed photo / screen replay).
+        
+        Args:
+            image: Full image in BGR format
+            bbox: Face bounding box as (x, y, w, h)
+            
+        Returns:
+            Tuple of (is_live: bool, liveness_score: float) where liveness_score is class 1 probability.
+        """
+        if self.liveness_model is None:
+            return True, 1.0
+            
+        try:
+            x, y, w, h = bbox
+            img_h, img_w = image.shape[:2]
+            
+            # Ensure valid bbox within image bounds
+            x = max(0, x)
+            y = max(0, y)
+            w = min(w, img_w - x)
+            h = min(h, img_h - y)
+            
+            if w <= 0 or h <= 0:
+                return False, 0.0
+                
+            # Add 20% margin around face to include features like hair/chin/neck (like AdvancedFaceProcessor)
+            margin_x = int(w * 0.2)
+            margin_y = int(h * 0.2)
+            x1 = max(0, x - margin_x)
+            y1 = max(0, y - margin_y)
+            x2 = min(img_w, x + w + margin_x)
+            y2 = min(img_h, y + h + margin_y)
+            
+            face_crop = image[y1:y2, x1:x2].copy()
+            if face_crop.size == 0:
+                return False, 0.0
+                
+            # Convert BGR to RGB (PyTorch pre-trained/trained model expects RGB)
+            face_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+            
+            # Resize to 224x224 (required by MobileNetV2)
+            face_resized = cv2.resize(face_rgb, (224, 224), interpolation=cv2.INTER_AREA)
+            
+            # Normalize: standard ImageNet mean and std
+            # (image_data / 255.0 - mean) / std
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            face_normalized = (face_resized.astype(np.float32) / 255.0 - mean) / std
+            
+            # Convert HWC to CHW tensor
+            face_tensor = face_normalized.transpose((2, 0, 1)) # (3, 224, 224)
+            face_tensor = torch.from_numpy(face_tensor.copy()).unsqueeze(0).to(self.liveness_device)
+            
+            # Perform inference
+            with torch.no_grad():
+                outputs = self.liveness_model(face_tensor)
+                # Apply softmax to get probabilities
+                probs = torch.softmax(outputs, dim=1).cpu().numpy()[0]
+                
+            # Class 0: Spoof, Class 1: Real
+            liveness_score = float(probs[1])
+            is_live = liveness_score >= 0.5
+            
+            logger.info(f"Liveness Check - Score: {liveness_score:.3f} | Live: {is_live}")
+            return is_live, liveness_score
+            
+        except Exception as e:
+            logger.error(f"Liveness check failed: {e}")
+            # Fallback to safe: return True so we don't block the app if there's a minor processing error
+            return True, 1.0
+            
     def recognize_face(self, image: np.ndarray) -> Tuple[Optional[str], float, Dict]:
         """
         Recognize a face in the given image
@@ -369,6 +463,19 @@ class FaceIDSystem:
             
             # Use the first detected face
             face_info = faces[0]
+            
+            # Perform liveness check
+            is_live, liveness_score = self.check_liveness(image, face_info['bbox'])
+            face_info['is_live'] = is_live
+            face_info['liveness_score'] = liveness_score
+            
+            # Convert numpy int32 to Python int for JSON serialization
+            if 'bbox' in face_info:
+                face_info['bbox'] = tuple(int(x) for x in face_info['bbox'])
+                
+            if not is_live:
+                logger.warning(f"Spoof attempt detected! (liveness score: {liveness_score:.3f})")
+                return "Spoof Attempt", liveness_score, face_info
             
             # Process face with advanced pipeline
             processed_data = self.advanced_processor.process_face_for_recognition(image, face_info['bbox'])
@@ -503,6 +610,20 @@ class FaceIDSystem:
             
             for face_info in faces:
                 try:
+                    # Perform liveness check
+                    is_live, liveness_score = self.check_liveness(image, face_info['bbox'])
+                    
+                    if not is_live:
+                        results.append({
+                            'person_name': 'Spoof Attempt',
+                            'confidence': float(liveness_score),
+                            'bbox': tuple(int(x) for x in face_info['bbox']),
+                            'recognition_method': 'liveness_blocked',
+                            'is_live': False,
+                            'liveness_score': float(liveness_score)
+                        })
+                        continue
+                        
                     # Process face with advanced pipeline
                     processed_data = self.advanced_processor.process_face_for_recognition(
                         image, face_info['bbox']
@@ -522,7 +643,9 @@ class FaceIDSystem:
                             'person_name': person_name,
                             'confidence': confidence,
                             'bbox': tuple(int(x) for x in face_info['bbox']),
-                            'recognition_method': 'traditional_fallback'
+                            'recognition_method': 'traditional_fallback',
+                            'is_live': True,
+                            'liveness_score': float(liveness_score)
                         })
                         continue
                     
@@ -553,7 +676,9 @@ class FaceIDSystem:
                         'bbox': tuple(int(x) for x in face_info['bbox']),
                         'recognition_method': method,
                         'image_quality': processed_data.get('image_quality', 0.0),
-                        'lighting_condition': processed_data.get('lighting_condition', 'unknown')
+                        'lighting_condition': processed_data.get('lighting_condition', 'unknown'),
+                        'is_live': True,
+                        'liveness_score': float(liveness_score)
                     })
                     
                     # Update stats
@@ -701,13 +826,22 @@ class FaceIDSystem:
         try:
             x, y, w, h = face_info['bbox']
             
-            # Draw bounding box
-            color = (0, 255, 0) if person_name else (0, 0, 255)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+            # Check for spoofing
+            is_spoof = (face_info.get('is_live') is False) or (person_name == "Spoof Attempt")
             
-            # Draw label
-            label = person_name if person_name else "Unknown"
-            label_text = f"{label} ({confidence:.3f})"
+            # Draw bounding box
+            if is_spoof:
+                color = (0, 0, 255) # Red for spoof
+                # Calculate spoof probability (class 0 probability)
+                live_prob = face_info.get('liveness_score', confidence)
+                spoof_prob = 1.0 - live_prob
+                label_text = f"SPOOF ({spoof_prob * 100:.1f}%)"
+            else:
+                color = (0, 255, 0) if person_name else (0, 0, 255) # Green for recognized, Red for unknown
+                label = person_name if person_name else "Unknown"
+                label_text = f"{label} ({confidence:.3f})"
+            
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
             
             # Calculate text size
             font = cv2.FONT_HERSHEY_SIMPLEX

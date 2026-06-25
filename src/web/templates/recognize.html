@@ -88,7 +88,13 @@
             const data = await res.json();
             
             if(res.ok) {
-                if(data.person_name) {
+                if(data.is_live === false || data.person_name === "Spoof Attempt") {
+                    resultName.innerHTML = "SPOOF ATTEMPT REJECTED";
+                    resultName.style.color = 'var(--danger)';
+                    const spoofProb = (1.0 - data.liveness_score) * 100;
+                    resultConfidence.innerHTML = `Spoof Confidence: ${spoofProb.toFixed(1)}% (Anti-spoofing verification failed)`;
+                    resultIcon.innerHTML = '<i class="fa-solid fa-mask text-danger"></i>';
+                } else if(data.person_name) {
                     resultName.innerHTML = data.person_name;
                     resultName.style.color = 'var(--success)';
                     resultConfidence.innerHTML = `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
